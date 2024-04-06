@@ -17,19 +17,21 @@ pub struct Layer {
 	pub weights: Vec<Matrix>,
 	pub biases: Vec<Matrix>,
 	activation_fn: ActivationFn,
+	derivative_fn: ActivationFn,
 
 	outputs: Matrix,
 	bucket: usize,
 }
 
 impl Layer {
-	fn new(weights: Vec<Matrix>, biases: Vec<Matrix>, activation_fn: ActivationFn) -> Self {
+	fn new(weights: Vec<Matrix>, biases: Vec<Matrix>, activation_fn: ActivationFn, derivative_fn: ActivationFn) -> Self {
 		let node_count = biases[0].data.len();
 
 		Self {
 			weights,
 			biases,
 			activation_fn,
+			derivative_fn,
 
 			outputs: Matrix::empty(1, node_count),
 			bucket: 0,
@@ -104,6 +106,7 @@ impl Network {
 				vec![Matrix::random(config::INPUT_NODES, config::HIDDEN_NODES), Matrix::random(config::INPUT_NODES, config::HIDDEN_NODES)],
 				vec![Matrix::random(1, config::HIDDEN_NODES), Matrix::random(1, config::HIDDEN_NODES)],
 				clipped_relu,
+				clipped_relu_derivative,
 			),
 			output_layer: Layer::new(
 				// vec![Matrix {
@@ -119,6 +122,7 @@ impl Network {
 				output_layer_weights,
 				output_layer_biases,
 				sigmoid,
+				sigmoid_derivative,
 			),
 		}
 	}
@@ -171,7 +175,7 @@ impl Network {
 
 			let output_layer_error = Matrix { rows: 1, cols: 1, data: vec![error] };
 
-			let mut output_layer_gradients = Matrix::map(&self.output_layer.outputs, sigmoid_derivative);
+			let mut output_layer_gradients = Matrix::map(&self.output_layer.outputs, self.output_layer.derivative_fn);
 			output_layer_gradients.multiply_mut(&output_layer_error);
 			output_layer_gradients.multiply_by_num_mut(config::LEARNING_RATE);
 
@@ -181,7 +185,7 @@ impl Network {
 
 			let hidden_layer_error = Matrix::dot(&output_layer_error, &self.output_layer.weights().transposed());
 
-			let mut hidden_layer_gradients = Matrix::map(&self.hidden_layer.outputs, clipped_relu_derivative);
+			let mut hidden_layer_gradients = Matrix::map(&self.hidden_layer.outputs, self.hidden_layer.derivative_fn);
 			hidden_layer_gradients.multiply_mut(&hidden_layer_error);
 			hidden_layer_gradients.multiply_by_num_mut(config::LEARNING_RATE);
 

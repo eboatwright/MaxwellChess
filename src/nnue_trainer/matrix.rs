@@ -21,7 +21,7 @@ impl Matrix {
 		let mut rng = thread_rng();
 
 		for i in 0..data.len() {
-			data[i] = rng.gen_range(-0.8..0.8);
+			data[i] = rng.gen_range(0.2..0.8);
 		}
 
 		Self {

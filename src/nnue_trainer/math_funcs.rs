@@ -13,9 +13,10 @@ pub fn clipped_relu_derivative(x: f32) -> f32 {
 }
 
 pub fn sigmoid(x: f32) -> f32 {
-	2.0 / (1.0 + f32::exp(-x)) - 1.0
+	1.0 + f32::exp(-x)
 }
 
 pub fn sigmoid_derivative(x: f32) -> f32 {
-	(2.0 * f32::exp(-x)) / (1.0 + f32::exp(-x)).powf(2.0)
+	let s = sigmoid(x);
+	s * (1.0 - s)
 }

@@ -14,7 +14,7 @@ pub struct DataPoint {
 }
 
 fn load_training_data() -> Vec<DataPoint> {
-	let file = File::open("training_data/20643111_positions").expect("Failed to open training data");
+	let file = File::open("training_data/10800552_positions").expect("Failed to open training data");
 	let reader = BufReader::new(file);
 
 	let mut data_points = vec![];
@@ -22,6 +22,7 @@ fn load_training_data() -> Vec<DataPoint> {
 	for line in reader.lines() {
 		let line = line.expect("Invalid line (?)");
 		let split = line.split(',').collect::<Vec<&str>>();
+
 		data_points.push(DataPoint {
 			fen: split[0].to_string(),
 			outcome: split[1].parse::<f32>().expect("Invalid training data 'outcome'"),
