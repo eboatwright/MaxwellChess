@@ -25,6 +25,10 @@ pub const WHITE_KING:     u8 = KING + 6;
 pub const NONE: u8 = 12;
 pub const COUNT: u8 = 12;
 
+pub fn build_piece(is_white: bool, piece_type: u8) -> u8 {
+	piece_type + is_white as u8 * 6
+}
+
 pub fn is_white(piece: u8) -> bool {
 	piece > BLACK_KING
 }

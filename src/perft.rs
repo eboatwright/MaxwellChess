@@ -38,10 +38,14 @@ fn perft(board: &mut Board, depth: u8, results: &mut PerftResults, root: bool) {
 	}
 
 	let moves = board.get_moves();
+
 	for m in moves {
+		if !board.make_move(&m) {
+			continue;
+		}
+
 		let leaf_nodes_before_move = results.leaf_nodes;
 
-		board.make_move(&m);
 		perft(board, depth - 1, results, false);
 		board.undo_move(&m);
 

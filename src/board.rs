@@ -1,3 +1,4 @@
+use crate::utils::print_bitboard;
 use crate::precalculated_data::*;
 use crate::flag;
 use crate::utils::pop_lsb;
@@ -11,7 +12,8 @@ pub const CAPTURES_ONLY: bool = true;
 pub struct Board {
 	pub piece_bitboards: [u64; pieces::COUNT as usize],
 	pub color_bitboards: [u64; 2],
-	pub whites_turn: bool,
+	pub attacked_squares: [u64; 2],
+	pub white_to_move: bool,
 }
 
 impl Board {
@@ -28,7 +30,6 @@ impl Board {
 				i += empty_squares;
 			} else {
 				let piece = pieces::from_char(c);
-				// pieces[i] = piece;
 				piece_bitboards[piece as usize] |= 1 << i;
 				color_bitboards[pieces::get_color_index(piece)] |= 1 << i;
 
@@ -37,15 +38,59 @@ impl Board {
 		}
 
 		Self {
-			// pieces,
 			piece_bitboards,
 			color_bitboards,
-			whites_turn: fen_split[1] == "w",
+			attacked_squares: [0; 2],
+			white_to_move: fen_split[1] == "w",
 		}
 	}
 
 	pub fn occupied_bitboard(&self) -> u64 {
 		self.color_bitboards[0] | self.color_bitboards[1]
+	}
+
+	pub fn calculate_attacked_squares(&mut self) {
+		let other_color = !self.white_to_move as usize;
+		if self.attacked_squares[other_color] == 0 {
+			let mut result = 0;
+
+			let pieces =
+				if !self.white_to_move {
+					pieces::WHITE_PAWN..=pieces::WHITE_KING
+				} else {
+					pieces::BLACK_PAWN..=pieces::BLACK_KING
+				};
+
+			for piece in pieces {
+				let mut bitboard = self.piece_bitboards[piece as usize];
+				while bitboard != 0 {
+					let piece_index = pop_lsb(&mut bitboard);
+					let piece_type = pieces::get_type(piece);
+
+					result |=
+						if piece_type == pieces::PAWN {
+							PAWN_ATTACKS[piece_index as usize][other_color]
+						} else if piece_type == pieces::KNIGHT {
+							KNIGHT_ATTACKS[piece_index as usize]
+						} else if piece_type == pieces::BISHOP {
+							get_bishop_moves(piece_index, self.occupied_bitboard())
+						} else if piece_type == pieces::ROOK {
+							get_rook_moves(piece_index, self.occupied_bitboard())
+						} else if piece_type == pieces::QUEEN {
+							get_bishop_moves(piece_index, self.occupied_bitboard()) | get_rook_moves(piece_index, self.occupied_bitboard())
+						} else { // King
+							KING_ATTACKS[piece_index as usize]
+						};
+				}
+			}
+
+			self.attacked_squares[other_color] = result;
+		}
+	}
+
+	pub fn king_in_check(&mut self) -> bool {
+		self.calculate_attacked_squares();
+		self.piece_bitboards[pieces::build_piece(self.white_to_move, pieces::KING) as usize] & self.attacked_squares[!self.white_to_move as usize] != 0
 	}
 
 	pub fn print(&self) {
@@ -58,7 +103,7 @@ impl Board {
 			println!("{}|", buffer);
 		}
 		println!("---------------------------------");
-		println!("{} to move", if self.whites_turn { "White" } else { "Black" });
+		println!("{} to move", if self.white_to_move { "White" } else { "Black" });
 	}
 
 	pub fn get(&self, i: u8) -> u8 {
@@ -72,10 +117,13 @@ impl Board {
 	}
 
 	pub fn move_piece(&mut self, data: &MoveData) {
+		let is_white = pieces::is_white(data.piece);
+
 		self.piece_bitboards[data.piece as usize] ^= 1 << data.from;
 
 		if data.capture != pieces::NONE {
 			self.piece_bitboards[data.capture as usize] ^= 1 << data.to;
+			self.color_bitboards[(!is_white) as usize] ^= 1 << data.to;
 		}
 
 		if flag::is_promotion(data.flag) {
@@ -84,16 +132,18 @@ impl Board {
 			self.piece_bitboards[data.piece as usize] ^= 1 << data.to;
 		}
 
-		let color = pieces::get_color_index(data.piece);
-		self.color_bitboards[color] ^= 1 << data.from;
-		self.color_bitboards[color] ^= 1 << data.to;
+		self.color_bitboards[is_white as usize] ^= 1 << data.from;
+		self.color_bitboards[is_white as usize] ^= 1 << data.to;
 	}
 
 	pub fn undo_move_piece(&mut self, data: &MoveData) {
+		let is_white = pieces::is_white(data.piece);
+
 		self.piece_bitboards[data.piece as usize] ^= 1 << data.from;
 
 		if data.capture != pieces::NONE {
 			self.piece_bitboards[data.capture as usize] ^= 1 << data.to;
+			self.color_bitboards[(!is_white) as usize] ^= 1 << data.to;
 		}
 
 		if flag::is_promotion(data.flag) {
@@ -104,21 +154,30 @@ impl Board {
 			self.piece_bitboards[data.piece as usize] ^= 1 << data.to;
 		}
 
-		let color = pieces::get_color_index(data.piece);
-		self.color_bitboards[color] ^= 1 << data.from;
-		self.color_bitboards[color] ^= 1 << data.to;
+		self.color_bitboards[is_white as usize] ^= 1 << data.from;
+		self.color_bitboards[is_white as usize] ^= 1 << data.to;
 	}
 
-	pub fn make_move(&mut self, data: &MoveData) {
+	pub fn make_move(&mut self, data: &MoveData) -> bool {
 		self.move_piece(data);
 
-		self.whites_turn = !self.whites_turn;
+		self.attacked_squares[!self.white_to_move as usize] = 0;
+
+		if self.king_in_check() {
+			self.white_to_move = !self.white_to_move;
+			self.undo_move(data);
+			return false;
+		}
+
+		self.white_to_move = !self.white_to_move;
+
+		true
 	}
 
 	pub fn undo_move(&mut self, data: &MoveData) {
 		self.undo_move_piece(data);
 
-		self.whites_turn = !self.whites_turn;
+		self.white_to_move = !self.white_to_move;
 	}
 
 	pub fn get_moves_for_piece(&self, piece_index: u8, captures_only: bool) -> Vec<MoveData> {
@@ -298,7 +357,7 @@ impl Board {
 		let mut moves = vec![];
 
 		let pieces =
-			if self.whites_turn {
+			if self.white_to_move {
 				pieces::WHITE_PAWN..=pieces::WHITE_KING
 			} else {
 				pieces::BLACK_PAWN..=pieces::BLACK_KING
@@ -320,7 +379,7 @@ impl Board {
 		let piece = self.get(data.from);
 
 		if piece == pieces::NONE
-		|| pieces::is_white(piece) != self.whites_turn {
+		|| pieces::is_white(piece) != self.white_to_move {
 			return false;
 		}
 
@@ -328,8 +387,7 @@ impl Board {
 		for m in moves {
 			if m.to == data.to
 			&& (data.flag == flag::NONE || data.flag == m.flag) {
-				self.make_move(&m);
-				return true;
+				return self.make_move(&m);
 			}
 		}
 

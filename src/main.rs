@@ -49,7 +49,7 @@ fn main() {
 				if bot.board.try_move(split[1]) {
 					bot.board.print();
 				} else {
-					println!("Invalid move.");
+					println!("Illegal move.");
 				}
 			}
 
