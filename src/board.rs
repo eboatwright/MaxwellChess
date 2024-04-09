@@ -4,6 +4,9 @@ use crate::utils::pop_lsb;
 use crate::pieces;
 use crate::move_data::MoveData;
 
+pub const ALL_MOVES: bool = false;
+pub const CAPTURES_ONLY: bool = true;
+
 #[derive(Clone)]
 pub struct Board {
 	pub pieces: [u8; 64],
@@ -130,7 +133,7 @@ impl Board {
 		self.whites_turn = !self.whites_turn;
 	}
 
-	pub fn get_moves_for_piece(&self, piece_index: u8) -> Vec<MoveData> {
+	pub fn get_moves_for_piece(&self, piece_index: u8, captures_only: bool) -> Vec<MoveData> {
 		let mut moves = vec![];
 		let piece = self.get(piece_index);
 		let piece_type = pieces::get_type(piece);
@@ -141,99 +144,95 @@ impl Board {
 			let rank = piece_index / 8;
 			let will_promote;
 
-
+			// TODO: clean this up!!!
 			if is_white_piece {
-
-
 				will_promote = rank == 1;
 
-				// Pushing
-				if self.get(piece_index - 8) == pieces::NONE {
-					if will_promote {
-						for promotion in pieces::KNIGHT..=pieces::QUEEN {
+				if !captures_only {
+					// Pushing
+					if self.get(piece_index - 8) == pieces::NONE {
+						if will_promote {
+							for promotion in pieces::KNIGHT..=pieces::QUEEN {
+								moves.push(
+									MoveData {
+										from: piece_index,
+										to: piece_index - 8,
+										piece,
+										capture: pieces::NONE,
+										flag: promotion,
+									}
+								);
+							}
+						} else {
 							moves.push(
 								MoveData {
 									from: piece_index,
 									to: piece_index - 8,
 									piece,
 									capture: pieces::NONE,
-									flag: promotion,
+									flag: flag::NONE,
 								}
 							);
 						}
-					} else {
-						moves.push(
-							MoveData {
-								from: piece_index,
-								to: piece_index - 8,
-								piece,
-								capture: pieces::NONE,
-								flag: flag::NONE,
-							}
-						);
-					}
 
-					if rank == 6
-					&& self.get(piece_index - 16) == pieces::NONE {
-						moves.push(
-							MoveData {
-								from: piece_index,
-								to: piece_index - 16,
-								piece,
-								capture: pieces::NONE,
-								flag: flag::DOUBLE_PAWN_PUSH,
-							}
-						);
+						if rank == 6
+						&& self.get(piece_index - 16) == pieces::NONE {
+							moves.push(
+								MoveData {
+									from: piece_index,
+									to: piece_index - 16,
+									piece,
+									capture: pieces::NONE,
+									flag: flag::DOUBLE_PAWN_PUSH,
+								}
+							);
+						}
 					}
 				}
-
-
 			} else {
-
-
 				will_promote = rank == 6;
 
-				// Pushing
-				if self.get(piece_index + 8) == pieces::NONE {
-					if will_promote {
-						for promotion in pieces::KNIGHT..=pieces::QUEEN {
+				if !captures_only {
+					// Pushing
+					if self.get(piece_index + 8) == pieces::NONE {
+						if will_promote {
+							for promotion in pieces::KNIGHT..=pieces::QUEEN {
+								moves.push(
+									MoveData {
+										from: piece_index,
+										to: piece_index + 8,
+										piece,
+										capture: pieces::NONE,
+										flag: promotion,
+									}
+								);
+							}
+						} else {
 							moves.push(
 								MoveData {
 									from: piece_index,
 									to: piece_index + 8,
 									piece,
 									capture: pieces::NONE,
-									flag: promotion,
+									flag: flag::NONE,
 								}
 							);
 						}
-					} else {
-						moves.push(
-							MoveData {
-								from: piece_index,
-								to: piece_index + 8,
-								piece,
-								capture: pieces::NONE,
-								flag: flag::NONE,
-							}
-						);
-					}
 
-					if rank == 1
-					&& self.get(piece_index + 16) == pieces::NONE {
-						moves.push(
-							MoveData {
-								from: piece_index,
-								to: piece_index + 16,
-								piece,
-								capture: pieces::NONE,
-								flag: flag::DOUBLE_PAWN_PUSH,
-							}
-						);
+						if rank == 1
+						&& self.get(piece_index + 16) == pieces::NONE {
+							moves.push(
+								MoveData {
+									from: piece_index,
+									to: piece_index + 16,
+									piece,
+									capture: pieces::NONE,
+									flag: flag::DOUBLE_PAWN_PUSH,
+								}
+							);
+						}
 					}
 				}
-
-
 			}
 
 			// Capturing
@@ -284,6 +283,10 @@ impl Board {
 				}
 				& !self.color_bitboards[is_white_piece as usize];
 
+			if captures_only {
+				bitboard &= self.color_bitboards[(!is_white_piece) as usize];
+			}
+
 			while bitboard != 0 {
 				let move_index = pop_lsb(&mut bitboard);
 				let capture = self.get(move_index);
@@ -317,7 +320,7 @@ impl Board {
 			let mut bitboard = self.piece_bitboards[piece as usize];
 			while bitboard != 0 {
 				let piece_index = pop_lsb(&mut bitboard);
-				moves.append(&mut self.get_moves_for_piece(piece_index));
+				moves.append(&mut self.get_moves_for_piece(piece_index, ALL_MOVES));
 			}
 		}
 
@@ -333,7 +336,7 @@ impl Board {
 			return false;
 		}
 
-		let moves = self.get_moves_for_piece(data.from);
+		let moves = self.get_moves_for_piece(data.from, ALL_MOVES);
 		for m in moves {
 			if m.to == data.to
 			&& (data.flag == flag::NONE || data.flag == m.flag) {
