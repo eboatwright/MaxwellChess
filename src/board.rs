@@ -9,7 +9,6 @@ pub const CAPTURES_ONLY: bool = true;
 
 #[derive(Clone)]
 pub struct Board {
-	pub pieces: [u8; 64],
 	pub piece_bitboards: [u64; pieces::COUNT as usize],
 	pub color_bitboards: [u64; 2],
 	pub whites_turn: bool,
@@ -20,7 +19,6 @@ impl Board {
 		let fen_split = fen.split(' ').collect::<Vec<&str>>();
 		let fen_pieces = fen_split[0].replace("/", "");
 
-		let mut pieces = [pieces::NONE; 64];
 		let mut piece_bitboards = [0; pieces::COUNT as usize];
 		let mut color_bitboards = [0; 2];
 		let mut i = 0;
@@ -30,7 +28,7 @@ impl Board {
 				i += empty_squares;
 			} else {
 				let piece = pieces::from_char(c);
-				pieces[i] = piece;
+				// pieces[i] = piece;
 				piece_bitboards[piece as usize] |= 1 << i;
 				color_bitboards[pieces::get_color_index(piece)] |= 1 << i;
 
@@ -39,7 +37,7 @@ impl Board {
 		}
 
 		Self {
-			pieces,
+			// pieces,
 			piece_bitboards,
 			color_bitboards,
 			whites_turn: fen_split[1] == "w",
@@ -64,19 +62,16 @@ impl Board {
 	}
 
 	pub fn get(&self, i: u8) -> u8 {
-		self.pieces[i as usize]
+		for piece in 0..pieces::COUNT {
+			if self.piece_bitboards[piece as usize] & (1 << i) != 0 {
+				return piece;
+			}
+		}
 
-		// for piece in 0..pieces::COUNT {
-		// 	if self.piece_bitboards[piece as usize] & (1 << i) != 0 {
-		// 		return piece;
-		// 	}
-		// }
-
-		// pieces::NONE
+		pieces::NONE
 	}
 
 	pub fn move_piece(&mut self, data: &MoveData) {
-		self.pieces[data.from as usize] = pieces::NONE;
 		self.piece_bitboards[data.piece as usize] ^= 1 << data.from;
 
 		if data.capture != pieces::NONE {
@@ -84,12 +79,8 @@ impl Board {
 		}
 
 		if flag::is_promotion(data.flag) {
-			let promotion_piece = data.flag + pieces::get_color_offset(data.piece);
-
-			self.pieces[data.to as usize] = promotion_piece;
-			self.piece_bitboards[promotion_piece as usize] ^= 1 << data.to;
+			self.piece_bitboards[(data.flag + pieces::get_color_offset(data.piece)) as usize] ^= 1 << data.to;
 		} else {
-			self.pieces[data.to as usize] = data.piece;
 			self.piece_bitboards[data.piece as usize] ^= 1 << data.to;
 		}
 
@@ -112,9 +103,6 @@ impl Board {
 		} else {
 			self.piece_bitboards[data.piece as usize] ^= 1 << data.to;
 		}
-
-		self.pieces[data.from as usize] = data.piece;
-		self.pieces[data.to as usize] = data.capture;
 
 		let color = pieces::get_color_index(data.piece);
 		self.color_bitboards[color] ^= 1 << data.from;
