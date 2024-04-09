@@ -12,6 +12,3 @@ Cargo.lock
 
 # MSVC Windows builds of rustc generate these, which store debugging information
 *.pdb
-
-lichess_db_eval
-nnue_trainer/__pycache__

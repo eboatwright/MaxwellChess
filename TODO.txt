@@ -1,0 +1,31 @@
+misc
+	zobrist hashing
+	uci interface
+		uci
+		setoption
+			Hash
+		isready
+		ucinewgame
+		position
+		go
+		stop
+		quit
+
+move gen
+	check
+	en passant
+	castling
+
+bot
+	pvs
+	lmr
+	check extension
+	move sorting
+		move list structure - incremental move sorting
+		mvv lvs
+		previous best move
+		transposition table move
+
+transposition table
+	storing
+	lookups
