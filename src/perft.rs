@@ -32,7 +32,8 @@ impl PerftResults {
 
 		perft(board, &mut results, depth, 0);
 
-		println!("\n{} seconds\n", timer.elapsed().as_secs_f32());
+		let seconds = timer.elapsed().as_secs_f32();
+		println!("\n{} nodes / {} seconds = {:.1} NPS\n", results.nodes, seconds, results.nodes as f32 / seconds);
 		println!("{:#?}", results);
 	}
 }
