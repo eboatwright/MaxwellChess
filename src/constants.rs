@@ -30,6 +30,10 @@ pub const QUEEN_DIRECTIONS: Range<usize>  = 0..8;
 
 pub const DIRECTION_OFFSETS: [i8; 8] = [NO, EA, SO, WE, NOEA, SOEA, SOWE, NOWE];
 
+pub const SECOND_RANK: [u8; 2] = [1, 6];
+pub const PAWN_PUSH: [i8; 2] = [SO, NO];
+pub const DOUBLE_PAWN_PUSH: [i8; 2] = [SO * 2, NO * 2];
+
 pub const SQUARES: [&str; 64] = [
 	"a8", "b8", "c8", "d8", "e8", "f8", "g8", "h8",
 	"a7", "b7", "c7", "d7", "e7", "f7", "g7", "h7",

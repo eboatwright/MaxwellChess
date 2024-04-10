@@ -1,3 +1,4 @@
+use crate::constants::*;
 use crate::utils::get_lsb;
 use crate::utils::print_bitboard;
 use crate::precalculated_data::*;
@@ -8,15 +9,18 @@ use crate::move_data::MoveData;
 
 pub const ALL_MOVES: bool = false;
 pub const CAPTURES_ONLY: bool = true;
-pub const SECOND_RANK: [u8; 2] = [1, 6];
-pub const PAWN_PUSH: [i8; 2] = [8, -8];
-pub const DOUBLE_PAWN_PUSH: [i8; 2] = [16, -16];
+
+#[derive(Copy, Clone)]
+pub struct BoardState {
+}
 
 #[derive(Clone)]
 pub struct Board {
 	pub piece_bitboards: [u64; pieces::COUNT as usize],
 	pub color_bitboards: [u64; 2],
 	pub white_to_move: bool,
+
+	pub history: Vec<BoardState>,
 }
 
 impl Board {
@@ -44,6 +48,8 @@ impl Board {
 			piece_bitboards,
 			color_bitboards,
 			white_to_move: fen_split[1] == "w",
+
+			history: vec![],
 		}
 	}
 
@@ -51,6 +57,14 @@ impl Board {
 		self.color_bitboards[0] | self.color_bitboards[1]
 	}
 
+	/*
+	The idea of this function is from Weiawaga and Tcheran (There's definitely more engines that use it,
+	but that's where I saw it), and it's so elegant, but a little confusing so I wanted to explain it:
+	what this function does is instead of calculating all the attacks of the enemy pieces, and then
+	checking if the target square is in that set, you go backwards. For example: if you're trying to
+	detect if a knight is checking the king, you place an "imaginary" knight on the king's square,
+	and if that knight attacks any of the opponent's knights, you know that knight is putting you in check!
+	*/
 	pub fn get_attackers_of(&self, square: u8) -> u64 {
 		let mut result = 0;
 
@@ -154,6 +168,11 @@ impl Board {
 	pub fn make_move(&mut self, data: &MoveData) -> bool {
 		self.move_piece(data);
 
+		self.history.push(
+			BoardState {
+			},
+		);
+
 		if self.in_check() {
 			self.white_to_move = !self.white_to_move;
 			self.undo_move(data);
@@ -166,9 +185,11 @@ impl Board {
 	}
 
 	pub fn undo_move(&mut self, data: &MoveData) {
-		self.undo_move_piece(data);
+		if let Some(history) = self.history.pop() {
+			self.undo_move_piece(data);
 
-		self.white_to_move = !self.white_to_move;
+			self.white_to_move = !self.white_to_move;
+		}
 	}
 
 	pub fn get_moves_for_piece(&self, piece_index: u8, captures_only: bool) -> Vec<MoveData> {
