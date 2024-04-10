@@ -34,7 +34,7 @@ pub const VALUES: [i32; 6] = [
 pub const NONE: u8 = 12;
 pub const COUNT: u8 = 12;
 
-pub fn build_piece(is_white: bool, piece_type: u8) -> u8 {
+pub fn build(is_white: bool, piece_type: u8) -> u8 {
 	piece_type + is_white as u8 * 6
 }
 

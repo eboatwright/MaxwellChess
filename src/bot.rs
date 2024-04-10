@@ -1,3 +1,4 @@
+use crate::pieces;
 use crate::move_data::{NULL_MOVE, MoveData};
 use crate::board::*;
 use std::time::Instant;
@@ -37,7 +38,7 @@ impl Bot {
 		self.timer = Instant::now();
 
 		// for depth in 1..=MAX_DEPTH {
-		self.ab_search(1, 0, -i32::MAX, i32::MAX);
+		self.ab_search(3, 0, -i32::MAX, i32::MAX);
 
 		self.best_move = self.best_move_this_iteration;
 		self.best_eval = self.best_eval_this_iteration;
@@ -59,7 +60,12 @@ impl Bot {
 		}
 
 		for m in self.board.get_moves(ALL_MOVES) {
+			if !self.board.make_move(&m) {
+				continue;
+			}
+
 			let eval = -self.ab_search(depth - 1, ply + 1, -beta, -alpha);
+			self.board.undo_move(&m);
 
 			if eval >= beta {
 				return beta;
@@ -91,7 +97,10 @@ impl Bot {
 		}
 
 		for m in self.board.get_moves(CAPTURES_ONLY) {
-			self.board.make_move(&m);
+			if !self.board.make_move(&m) {
+				continue;
+			}
+
 			let eval = -self.q_search(-beta, -alpha);
 			self.board.undo_move(&m);
 

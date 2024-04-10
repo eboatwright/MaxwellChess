@@ -1,3 +1,4 @@
+use crate::utils::get_lsb;
 use crate::utils::print_bitboard;
 use crate::precalculated_data::*;
 use crate::flag;
@@ -48,6 +49,41 @@ impl Board {
 
 	pub fn occupied_bitboard(&self) -> u64 {
 		self.color_bitboards[0] | self.color_bitboards[1]
+	}
+
+	pub fn get_attackers_of(&self, square: u8) -> u64 {
+		let mut result = 0;
+
+		let occupied = self.occupied_bitboard();
+		let other_color = !self.white_to_move;
+		let other_queens = self.piece_bitboards[pieces::build(other_color, pieces::QUEEN) as usize];
+
+		result |=
+			PAWN_ATTACKS[square as usize][self.white_to_move as usize]
+			& self.piece_bitboards[pieces::build(other_color, pieces::PAWN) as usize];
+
+		result |=
+			KNIGHT_ATTACKS[square as usize]
+			& self.piece_bitboards[pieces::build(other_color, pieces::KNIGHT) as usize];
+
+		result |=
+			get_bishop_moves(square, occupied)
+			& (self.piece_bitboards[pieces::build(other_color, pieces::BISHOP) as usize] | other_queens);
+
+		result |=
+			get_rook_moves(square, occupied)
+			& (self.piece_bitboards[pieces::build(other_color, pieces::ROOK) as usize] | other_queens);
+
+		result |=
+			KING_ATTACKS[square as usize]
+			& self.piece_bitboards[pieces::build(other_color, pieces::KING) as usize];
+
+		result
+	}
+
+	pub fn in_check(&self) -> bool {
+		let king_bitboard = self.piece_bitboards[pieces::build(self.white_to_move, pieces::KING) as usize];
+		self.get_attackers_of(get_lsb(king_bitboard)) != 0
 	}
 
 	pub fn print(&self) {
@@ -115,10 +151,18 @@ impl Board {
 		self.color_bitboards[is_white as usize] ^= 1 << data.to;
 	}
 
-	pub fn make_move(&mut self, data: &MoveData) {
+	pub fn make_move(&mut self, data: &MoveData) -> bool {
 		self.move_piece(data);
 
+		if self.in_check() {
+			self.white_to_move = !self.white_to_move;
+			self.undo_move(data);
+			return false;
+		}
+
 		self.white_to_move = !self.white_to_move;
+
+		true
 	}
 
 	pub fn undo_move(&mut self, data: &MoveData) {
@@ -291,8 +335,7 @@ impl Board {
 		for m in moves {
 			if m.to == data.to
 			&& (data.flag == flag::NONE || data.flag == m.flag) {
-				self.make_move(&m);
-				return true;
+				return self.make_move(&m);
 			}
 		}
 
