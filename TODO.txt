@@ -1,9 +1,11 @@
 misc
+	multithreaded perft tests
 	zobrist hashing
 	uci interface
 		uci
 		setoption
 			Hash
+			Threads
 		isready
 		ucinewgame
 		position
@@ -12,9 +14,15 @@ misc
 		quit
 
 move gen
-	check
 	en passant
+		when a pawn does a double push, store the square inbetween the start and target square
+		when checking for pawn legal moves check if the current pawn can capture the target square
+		if en passant gets played remove the pawn behind the en passant square
 	castling
+		store the current castling rights
+		if any rook gets captured or moved remove castling rights for that side
+		if any king moves remove all castling rights for that color
+		when a move gets undone set the current castling rights to the previous castling rights
 
 bot
 	pvs
@@ -25,7 +33,9 @@ bot
 		mvv lvs
 		previous best move
 		transposition table move
+	multithreading
 
 transposition table
 	storing
 	lookups
+	multithreading safe
