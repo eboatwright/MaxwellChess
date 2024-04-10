@@ -8,6 +8,7 @@ pub const MAX_DEPTH: u8 = 100;
 pub struct Bot {
 	pub timer: Instant,
 	pub board: Board,
+
 	pub nodes: u128,
 	pub q_nodes: u128,
 
@@ -35,10 +36,16 @@ impl Bot {
 	}
 
 	pub fn go(&mut self) {
+		self.nodes = 0;
+		self.q_nodes = 0;
+
+		self.best_move = NULL_MOVE;
+		self.best_eval = 0;
+
 		self.timer = Instant::now();
 
 		// for depth in 1..=MAX_DEPTH {
-		self.ab_search(3, 0, -i32::MAX, i32::MAX);
+		self.ab_search(8, 0, -i32::MAX, i32::MAX);
 
 		self.best_move = self.best_move_this_iteration;
 		self.best_eval = self.best_eval_this_iteration;
