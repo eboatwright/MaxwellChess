@@ -20,6 +20,14 @@ pub mod flag {
 	}
 }
 
+pub const NULL_MOVE: MoveData = MoveData {
+	from: 0,
+	to: 0,
+	piece: pieces::NONE,
+	capture: pieces::NONE,
+	flag: flag::NONE,
+};
+
 #[derive(Copy, Clone)]
 pub struct MoveData {
 	pub from: u8,

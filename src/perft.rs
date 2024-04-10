@@ -1,3 +1,4 @@
+use crate::board::ALL_MOVES;
 use std::time::Instant;
 use crate::Board;
 
@@ -37,7 +38,7 @@ fn perft(board: &mut Board, depth: u8, results: &mut PerftResults, root: bool) {
 		return;
 	}
 
-	let moves = board.get_moves();
+	let moves = board.get_moves(ALL_MOVES);
 
 	for m in moves {
 		let leaf_nodes_before_move = results.leaf_nodes;

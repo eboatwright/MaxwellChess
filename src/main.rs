@@ -31,7 +31,7 @@ pub const ZUGZWANG_MATE_IN_3: &str = "7k/5Q2/3p4/1p2r1p1/3B2Pp/1p5P/8/6K1 w - - 
 
 fn main() {
 	// precalculated_data::calculate();
-	let mut bot = Bot::new(STARTING_FEN);
+	let mut bot = Bot::new(KIWIPETE);
 
 	loop {
 		let mut input = String::new();

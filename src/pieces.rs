@@ -22,6 +22,15 @@ pub const WHITE_ROOK:     u8 = ROOK + 6;
 pub const WHITE_QUEEN:    u8 = QUEEN + 6;
 pub const WHITE_KING:     u8 = KING + 6;
 
+pub const VALUES: [i32; 6] = [
+	100,
+	310,
+	330,
+	500,
+	900,
+	0,
+];
+
 pub const NONE: u8 = 12;
 pub const COUNT: u8 = 12;
 
@@ -46,6 +55,14 @@ pub fn get_color_offset(piece: u8) -> u8 {
 		6
 	} else {
 		0
+	}
+}
+
+pub fn get_eval_multiplier(piece: u8) -> i32 {
+	if is_white(piece) {
+		 1
+	} else {
+		-1
 	}
 }
 
