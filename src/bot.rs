@@ -45,7 +45,7 @@ impl Bot {
 		self.timer = Instant::now();
 
 		// for depth in 1..=MAX_DEPTH {
-		self.ab_search(8, 0, -i32::MAX, i32::MAX);
+		self.ab_search(2, 0, -i32::MAX, i32::MAX);
 
 		self.best_move = self.best_move_this_iteration;
 		self.best_eval = self.best_eval_this_iteration;

@@ -2,8 +2,10 @@
 #![allow(unused_variables)]
 #![allow(unused_imports)]
 
+pub mod value_holder;
 pub mod constants;
 pub mod precalculated_data;
+pub mod castling_rights;
 pub mod utils;
 pub mod pieces;
 pub mod move_data;
@@ -11,6 +13,7 @@ pub mod board;
 pub mod perft;
 pub mod bot;
 
+use crate::value_holder::ValueHolder;
 use crate::bot::Bot;
 use std::time::Instant;
 use crate::move_data::flag;
@@ -30,7 +33,7 @@ pub const ZUGZWANG_MATE_IN_3: &str = "7k/5Q2/3p4/1p2r1p1/3B2Pp/1p5P/8/6K1 w - - 
 
 fn main() {
 	// precalculated_data::calculate();
-	let mut bot = Bot::new(KIWIPETE);
+	let mut bot = Bot::new(STARTING_FEN);
 
 	loop {
 		let mut input = String::new();

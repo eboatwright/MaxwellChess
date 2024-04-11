@@ -9,8 +9,8 @@ pub mod flag {
 	pub const PROMOTE_QUEEN:    u8 = 4;
 	pub const DOUBLE_PAWN_PUSH: u8 = 5;
 	pub const EN_PASSANT:       u8 = 6;
-	pub const CASTLE_SHORT:     u8 = 7;
-	pub const CASTLE_LONG:      u8 = 8;
+	pub const CASTLE_KINGSIDE:  u8 = 7;
+	pub const CASTLE_QUEENSIDE: u8 = 8;
 
 	pub fn is_promotion(flag: u8) -> bool {
 		   flag == PROMOTE_KNIGHT

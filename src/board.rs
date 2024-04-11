@@ -1,3 +1,5 @@
+use crate::value_holder::ValueHolder;
+use crate::castling_rights::*;
 use crate::constants::*;
 use crate::utils::get_lsb;
 use crate::utils::print_bitboard;
@@ -12,6 +14,8 @@ pub const CAPTURES_ONLY: bool = true;
 
 #[derive(Copy, Clone)]
 pub struct BoardState {
+	pub castling_rights: CastlingRights,
+	pub en_passant_square: u8,
 }
 
 #[derive(Clone)]
@@ -20,7 +24,7 @@ pub struct Board {
 	pub color_bitboards: [u64; 2],
 	pub white_to_move: bool,
 
-	pub history: Vec<BoardState>,
+	pub history: ValueHolder<BoardState>,
 }
 
 impl Board {
@@ -49,7 +53,12 @@ impl Board {
 			color_bitboards,
 			white_to_move: fen_split[1] == "w",
 
-			history: vec![],
+			history: ValueHolder::new(
+				BoardState {
+					castling_rights: CastlingRights::from_str(fen_split[2]),
+					en_passant_square: square_to_index(fen_split[3]),
+				}
+			),
 		}
 	}
 
@@ -168,10 +177,20 @@ impl Board {
 	pub fn make_move(&mut self, data: &MoveData) -> bool {
 		self.move_piece(data);
 
-		self.history.push(
-			BoardState {
-			},
-		);
+		let piece_type = pieces::get_type(data.piece);
+		let mut current_state = self.history.peek();
+
+		if piece_type == pieces::KING {
+			current_state.castling_rights.remove_both(self.white_to_move);
+		} else if piece_type == pieces::ROOK {
+			current_state.castling_rights.remove_one(data.from);
+		}
+
+		if pieces::get_type(data.capture) == pieces::ROOK {
+			current_state.castling_rights.remove_one(data.to);
+		}
+
+		self.history.push(current_state);
 
 		if self.in_check() {
 			self.white_to_move = !self.white_to_move;
@@ -185,9 +204,10 @@ impl Board {
 	}
 
 	pub fn undo_move(&mut self, data: &MoveData) {
-		if let Some(history) = self.history.pop() {
+		if !self.history.is_empty() {
 			self.undo_move_piece(data);
 
+			self.history.pop();
 			self.white_to_move = !self.white_to_move;
 		}
 	}
@@ -201,12 +221,12 @@ impl Board {
 
 		if piece_type == pieces::PAWN {
 			let rank = piece_index / 8;
-			let will_promote = rank == SECOND_RANK[!self.white_to_move as usize];
+			let will_promote = rank == SECOND_RANK[other_color];
 
 
 			// Pushing
 			if !captures_only {
-				let single_push = (piece_index as i8 + PAWN_PUSH[self.white_to_move as usize]) as u8;
+				let single_push = (piece_index as i8 + PAWN_PUSH[is_white_piece as usize]) as u8;
 
 				if self.get(single_push) == pieces::NONE {
 					if will_promote {
@@ -233,8 +253,8 @@ impl Board {
 						);
 					}
 
-					if rank == SECOND_RANK[self.white_to_move as usize] {
-						let double_push = (piece_index as i8 + DOUBLE_PAWN_PUSH[self.white_to_move as usize]) as u8;
+					if rank == SECOND_RANK[is_white_piece as usize] {
+						let double_push = (piece_index as i8 + DOUBLE_PAWN_PUSH[is_white_piece as usize]) as u8;
 
 						if self.get(double_push) == pieces::NONE {
 							moves.push(
@@ -301,6 +321,34 @@ impl Board {
 
 			if captures_only {
 				bitboard &= self.color_bitboards[!is_white_piece as usize];
+			} else if piece_type == pieces::KING {
+				let castling_rights = self.history.peek().castling_rights;
+
+				if castling_rights.kingside[is_white_piece as usize]
+				&& CASTLE_KINGSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
+				&& self.get_attackers_of(piece_index + 1) == 0 {
+					moves.push(
+						MoveData {
+							from: piece_index,
+							to: piece_index + 2,
+							piece,
+							capture: pieces::NONE,
+							flag: flag::CASTLE_KINGSIDE,
+						}
+					);
+				} else if castling_rights.queenside[is_white_piece as usize]
+				&& CASTLE_QUEENSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
+				&& self.get_attackers_of(piece_index - 1) == 0 {
+					moves.push(
+						MoveData {
+							from: piece_index,
+							to: piece_index - 2,
+							piece,
+							capture: pieces::NONE,
+							flag: flag::CASTLE_QUEENSIDE,
+						}
+					);
+				}
 			}
 
 			while bitboard != 0 {
