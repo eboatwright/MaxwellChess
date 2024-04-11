@@ -177,13 +177,42 @@ impl Board {
 	pub fn make_move(&mut self, data: &MoveData) -> bool {
 		self.move_piece(data);
 
-		let piece_type = pieces::get_type(data.piece);
 		let mut current_state = self.history.peek();
 
-		if piece_type == pieces::KING {
-			current_state.castling_rights.remove_both(self.white_to_move);
-		} else if piece_type == pieces::ROOK {
-			current_state.castling_rights.remove_one(data.from);
+		if data.flag == flag::DOUBLE_PAWN_PUSH {
+			current_state.en_passant_square = (data.to as i8 - PAWN_PUSH[self.white_to_move as usize]) as u8;
+		} else {
+			current_state.en_passant_square = 0;
+
+			let piece_type = pieces::get_type(data.piece);
+
+			if piece_type == pieces::KING {
+				current_state.castling_rights.remove_both(self.white_to_move);
+
+				if data.flag == flag::CASTLE_KINGSIDE {
+					let rook = pieces::build(self.white_to_move, pieces::ROOK) as usize;
+					let rook_from = 1 << (data.to + 1);
+					let rook_to = 1 << (data.to - 1);
+
+					self.piece_bitboards[rook] ^= rook_from;
+					self.piece_bitboards[rook] ^= rook_to;
+
+					self.color_bitboards[self.white_to_move as usize] ^= rook_from;
+					self.color_bitboards[self.white_to_move as usize] ^= rook_to;
+				} else if data.flag == flag::CASTLE_QUEENSIDE {
+					let rook = pieces::build(self.white_to_move, pieces::ROOK) as usize;
+					let rook_from = 1 << (data.to - 2);
+					let rook_to = 1 << (data.to + 1);
+
+					self.piece_bitboards[rook] ^= rook_from;
+					self.piece_bitboards[rook] ^= rook_to;
+
+					self.color_bitboards[self.white_to_move as usize] ^= rook_from;
+					self.color_bitboards[self.white_to_move as usize] ^= rook_to;
+				}
+			} else if piece_type == pieces::ROOK {
+				current_state.castling_rights.remove_one(data.from);
+			}
 		}
 
 		if pieces::get_type(data.capture) == pieces::ROOK {

@@ -13,6 +13,7 @@ pub mod board;
 pub mod perft;
 pub mod bot;
 
+use crate::constants::SQUARES;
 use crate::value_holder::ValueHolder;
 use crate::bot::Bot;
 use std::time::Instant;
