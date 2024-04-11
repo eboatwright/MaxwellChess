@@ -6,6 +6,7 @@ pub mod value_holder;
 pub mod constants;
 pub mod precalculated_data;
 pub mod castling_rights;
+pub mod move_list;
 pub mod utils;
 pub mod pieces;
 pub mod move_data;

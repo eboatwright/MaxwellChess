@@ -1,3 +1,4 @@
+use crate::constants::CHECKMATE;
 use crate::pieces;
 use crate::move_data::{NULL_MOVE, MoveData};
 use crate::board::*;
@@ -45,7 +46,7 @@ impl Bot {
 		self.timer = Instant::now();
 
 		// for depth in 1..=MAX_DEPTH {
-		self.ab_search(2, 0, -i32::MAX, i32::MAX);
+		self.ab_search(6, 0, -i32::MAX, i32::MAX);
 
 		self.best_move = self.best_move_this_iteration;
 		self.best_eval = self.best_eval_this_iteration;
@@ -66,10 +67,15 @@ impl Bot {
 			self.nodes += 1;
 		}
 
-		for m in self.board.get_moves(ALL_MOVES) {
+		let move_list = self.board.get_moves(ALL_MOVES);
+		let mut found_legal_move = false;
+
+		for m in move_list.moves {
 			if !self.board.make_move(&m) {
 				continue;
 			}
+
+			found_legal_move = true;
 
 			let eval = -self.ab_search(depth - 1, ply + 1, -beta, -alpha);
 			self.board.undo_move(&m);
@@ -88,9 +94,18 @@ impl Bot {
 			}
 		}
 
+		if !found_legal_move {
+			if self.board.in_check() {
+				return -(CHECKMATE - ply as i32);
+			}
+
+			return 0; // Stalemate
+		}
+
 		alpha
 	}
 
+	// Do I really need to check for mate or stalemate here?
 	pub fn q_search(&mut self, mut alpha: i32, beta: i32) -> i32 {
 		self.q_nodes += 1;
 
@@ -103,7 +118,8 @@ impl Bot {
 			alpha = eval;
 		}
 
-		for m in self.board.get_moves(CAPTURES_ONLY) {
+		let move_list = self.board.get_moves(CAPTURES_ONLY);
+		for m in move_list.moves {
 			if !self.board.make_move(&m) {
 				continue;
 			}

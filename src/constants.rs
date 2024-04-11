@@ -1,5 +1,7 @@
 use std::ops::Range;
 
+pub const CHECKMATE: i32 = 100_000;
+
 pub const A_FILE: u64 = 0x_8080808080808080;
 pub const B_FILE: u64 = A_FILE >> 1;
 pub const C_FILE: u64 = A_FILE >> 2;

@@ -1,3 +1,4 @@
+use crate::move_list::MoveList;
 use crate::value_holder::ValueHolder;
 use crate::castling_rights::*;
 use crate::constants::*;
@@ -244,8 +245,7 @@ impl Board {
 		}
 	}
 
-	pub fn get_moves_for_piece(&self, piece_index: u8, captures_only: bool) -> Vec<MoveData> {
-		let mut moves = vec![];
+	pub fn get_moves_for_piece(&self, piece_index: u8, captures_only: bool, move_list: &mut MoveList) {
 		let piece = self.get(piece_index);
 		let piece_type = pieces::get_type(piece);
 		let is_white_piece = pieces::is_white(piece);
@@ -263,7 +263,7 @@ impl Board {
 				if self.get(single_push) == pieces::NONE {
 					if will_promote {
 						for promotion in pieces::KNIGHT..=pieces::QUEEN {
-							moves.push(
+							move_list.push(
 								MoveData {
 									from: piece_index,
 									to: single_push,
@@ -273,7 +273,7 @@ impl Board {
 							);
 						}
 					} else {
-						moves.push(
+						move_list.push(
 							MoveData {
 								from: piece_index,
 								to: single_push,
@@ -287,7 +287,7 @@ impl Board {
 						let double_push = (piece_index as i8 + DOUBLE_PAWN_PUSH[is_white_piece as usize]) as u8;
 
 						if self.get(double_push) == pieces::NONE {
-							moves.push(
+							move_list.push(
 								MoveData {
 									from: piece_index,
 									to: double_push,
@@ -310,7 +310,7 @@ impl Board {
 
 				if will_promote {
 					for promotion in pieces::KNIGHT..=pieces::QUEEN {
-						moves.push(
+						move_list.push(
 							MoveData {
 								from: piece_index,
 								to: capture_index,
@@ -320,7 +320,7 @@ impl Board {
 						);
 					}
 				} else {
-					moves.push(
+					move_list.push(
 						MoveData {
 							from: piece_index,
 							to: capture_index,
@@ -336,7 +336,7 @@ impl Board {
 			let en_passant_square = self.history.peek().en_passant_square;
 			if en_passant_square != 0
 			&& PAWN_ATTACKS[piece_index as usize][is_white_piece as usize] & (1 << en_passant_square) != 0 {
-				moves.push(
+				move_list.push(
 					MoveData {
 						from: piece_index,
 						to: en_passant_square,
@@ -369,7 +369,7 @@ impl Board {
 				&& CASTLE_KINGSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
 				&& !self.in_check()
 				&& self.get_attackers_of(piece_index + 1) == 0 {
-					moves.push(
+					move_list.push(
 						MoveData {
 							from: piece_index,
 							to: piece_index + 2,
@@ -383,7 +383,7 @@ impl Board {
 				&& CASTLE_QUEENSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
 				&& !self.in_check()
 				&& self.get_attackers_of(piece_index - 1) == 0 {
-					moves.push(
+					move_list.push(
 						MoveData {
 							from: piece_index,
 							to: piece_index - 2,
@@ -397,7 +397,7 @@ impl Board {
 			while bitboard != 0 {
 				let move_index = pop_lsb(&mut bitboard);
 
-				moves.push(
+				move_list.push(
 					MoveData {
 						from: piece_index,
 						to: move_index,
@@ -407,12 +407,10 @@ impl Board {
 				);
 			}
 		}
-
-		moves
 	}
 
-	pub fn get_moves(&self, captures_only: bool) -> Vec<MoveData> {
-		let mut moves = vec![];
+	pub fn get_moves(&self, captures_only: bool) -> MoveList {
+		let mut move_list = MoveList::new();
 
 		let pieces =
 			if self.white_to_move {
@@ -425,11 +423,11 @@ impl Board {
 			let mut bitboard = self.piece_bitboards[piece as usize];
 			while bitboard != 0 {
 				let piece_index = pop_lsb(&mut bitboard);
-				moves.append(&mut self.get_moves_for_piece(piece_index, captures_only));
+				self.get_moves_for_piece(piece_index, captures_only, &mut move_list);
 			}
 		}
 
-		moves
+		move_list
 	}
 
 	pub fn try_move(&mut self, coordinates: &str) -> bool {
@@ -441,8 +439,9 @@ impl Board {
 			return false;
 		}
 
-		let moves = self.get_moves_for_piece(data.from, ALL_MOVES);
-		for m in moves {
+		let mut move_list = MoveList::new();
+		self.get_moves_for_piece(data.from, ALL_MOVES, &mut move_list);
+		for m in move_list.moves {
 			if m.to == data.to
 			&& (data.flag == flag::NONE || data.flag == m.flag) {
 				return self.make_move(&m);

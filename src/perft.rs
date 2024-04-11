@@ -38,9 +38,8 @@ fn perft(board: &mut Board, depth: u8, results: &mut PerftResults, root: bool) {
 		return;
 	}
 
-	let moves = board.get_moves(ALL_MOVES);
-
-	for m in moves {
+	let move_list = board.get_moves(ALL_MOVES);
+	for m in move_list.moves {
 		if !board.make_move(&m) {
 			continue;
 		}
