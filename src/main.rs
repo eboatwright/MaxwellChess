@@ -13,15 +13,9 @@ pub mod board;
 pub mod perft;
 pub mod bot;
 
-use crate::utils::print_bitboard;
-use crate::castling_rights::CASTLE_QUEENSIDE_MASK;
-use crate::constants::SQUARES;
-use crate::value_holder::ValueHolder;
 use crate::bot::Bot;
 use std::time::Instant;
 use crate::move_data::flag;
-use crate::move_data::MoveData;
-use crate::constants::square_to_index;
 use crate::board::Board;
 
 pub const STARTING_POS:       &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";

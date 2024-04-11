@@ -31,7 +31,7 @@ pub struct Board {
 impl Board {
 	pub fn new(fen: &'static str) -> Self {
 		let fen_split = fen.split(' ').collect::<Vec<&str>>();
-		let fen_pieces = fen_split[0].replace("/", "");
+		let fen_pieces = fen_split[0].replace('/', "");
 
 		let mut piece_bitboards = [0; pieces::COUNT as usize];
 		let mut color_bitboards = [0; 2];
@@ -134,6 +134,7 @@ impl Board {
 		pieces::NONE
 	}
 
+	// Since I'm using ^= this function is used for placing and removing pieces
 	pub fn toggle_piece(&mut self, piece: u8, square: u8) {
 		let square = 1 << square;
 		self.piece_bitboards[piece as usize] ^= square;
@@ -166,36 +167,40 @@ impl Board {
 		if data.flag == flag::DOUBLE_PAWN_PUSH {
 			current_state.en_passant_square = (data.to as i8 - PAWN_PUSH[self.white_to_move as usize]) as u8;
 		} else {
-			if data.flag == flag::EN_PASSANT {
+			if data.flag == flag::EN_PASSANT { // If en passant was played, capture will actually be pieces::NONE because current_state.capture is set at the top of the function
 				let pawn_square = current_state.en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
 				let pawn_captured = pieces::build(!self.white_to_move, pieces::PAWN);
 				self.toggle_piece(pawn_captured, pawn_square as u8);
-				current_state.capture = pawn_captured;
-			} else if current_state.capture != pieces::NONE {
-				self.toggle_piece(current_state.capture, data.to);
-			}
+				current_state.capture = pawn_captured; // Set the capture to the correct pawn, because this is used in undo_move
+			} else {
+				let piece_type = pieces::get_type(data.piece);
 
-			current_state.en_passant_square = 0;
+				if piece_type == pieces::KING {
+					current_state.castling_rights.remove_both(self.white_to_move);
 
-			let piece_type = pieces::get_type(data.piece);
-
-			if piece_type == pieces::KING {
-				current_state.castling_rights.remove_both(self.white_to_move);
-
-				if data.flag == flag::CASTLE_KINGSIDE {
-					let rook = pieces::build(self.white_to_move, pieces::ROOK);
-					self.move_piece(rook, data.to + 1, data.to - 1);
-				} else if data.flag == flag::CASTLE_QUEENSIDE {
-					let rook = pieces::build(self.white_to_move, pieces::ROOK);
-					self.move_piece(rook, data.to - 2, data.to + 1);
+					if data.flag == flag::CASTLE_KINGSIDE {
+						let rook = pieces::build(self.white_to_move, pieces::ROOK);
+						self.move_piece(rook, data.to + 1, data.to - 1);
+					} else if data.flag == flag::CASTLE_QUEENSIDE {
+						let rook = pieces::build(self.white_to_move, pieces::ROOK);
+						self.move_piece(rook, data.to - 2, data.to + 1);
+					}
+				} else if piece_type == pieces::ROOK {
+					current_state.castling_rights.remove_one(data.from);
 				}
-			} else if piece_type == pieces::ROOK {
-				current_state.castling_rights.remove_one(data.from);
-			}
-		}
 
-		if pieces::get_type(current_state.capture) == pieces::ROOK {
-			current_state.castling_rights.remove_one(data.to);
+				if current_state.capture != pieces::NONE {
+					self.toggle_piece(current_state.capture, data.to);
+
+					if pieces::get_type(current_state.capture) == pieces::ROOK {
+						current_state.castling_rights.remove_one(data.to);
+					}
+				}
+			}
+
+			// Reset the en passant square because you can only en passant the turn after the double pawn push
+			// This also has to be set after checking if the move was en passant, because we need to check the en passant square (I'm leaving this so I remember lol)
+			current_state.en_passant_square = 0;
 		}
 
 		self.history.push(current_state);
@@ -227,14 +232,14 @@ impl Board {
 			if data.flag == flag::EN_PASSANT {
 				let pawn_square = self.history.peek().en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
 				self.toggle_piece(last_state.capture, pawn_square as u8);
+			} else if last_state.capture != pieces::NONE {
+				self.toggle_piece(last_state.capture, data.to);
 			} else if data.flag == flag::CASTLE_KINGSIDE {
 				let rook = pieces::build(self.white_to_move, pieces::ROOK);
 				self.move_piece(rook, data.to - 1, data.to + 1);
 			} else if data.flag == flag::CASTLE_QUEENSIDE {
 				let rook = pieces::build(self.white_to_move, pieces::ROOK);
 				self.move_piece(rook, data.to + 1, data.to - 2);
-			} else if last_state.capture != pieces::NONE {
-				self.toggle_piece(last_state.capture, data.to);
 			}
 		}
 	}
@@ -302,7 +307,6 @@ impl Board {
 
 			while bitboard != 0 {
 				let capture_index = pop_lsb(&mut bitboard);
-				let capture = self.get(capture_index);
 
 				if will_promote {
 					for promotion in pieces::KNIGHT..=pieces::QUEEN {
@@ -330,21 +334,16 @@ impl Board {
 
 			// En passant
 			let en_passant_square = self.history.peek().en_passant_square;
-			if en_passant_square != 0 {
-				let bitboard =
-					  PAWN_ATTACKS[piece_index as usize][is_white_piece as usize]
-					& (1 << en_passant_square);
-				if bitboard != 0 {
-					let index = get_lsb(bitboard);
-					moves.push(
-						MoveData {
-							from: piece_index,
-							to: en_passant_square,
-							piece,
-							flag: flag::EN_PASSANT,
-						}
-					);
-				}
+			if en_passant_square != 0
+			&& PAWN_ATTACKS[piece_index as usize][is_white_piece as usize] & (1 << en_passant_square) != 0 {
+				moves.push(
+					MoveData {
+						from: piece_index,
+						to: en_passant_square,
+						piece,
+						flag: flag::EN_PASSANT,
+					}
+				);
 			}
 		} else {
 			let mut bitboard =
@@ -397,7 +396,6 @@ impl Board {
 
 			while bitboard != 0 {
 				let move_index = pop_lsb(&mut bitboard);
-				let capture = self.get(move_index);
 
 				moves.push(
 					MoveData {
