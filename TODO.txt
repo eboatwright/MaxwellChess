@@ -13,11 +13,6 @@ misc
 		stop
 		quit
 
-move gen
-	en passant
-		when checking for pawn legal moves check if the current pawn can capture the target square
-		if en passant gets played remove the pawn behind the en passant square
-
 bot
 	pvs
 	lmr

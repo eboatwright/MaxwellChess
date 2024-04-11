@@ -13,6 +13,8 @@ pub mod board;
 pub mod perft;
 pub mod bot;
 
+use crate::utils::print_bitboard;
+use crate::castling_rights::CASTLE_QUEENSIDE_MASK;
 use crate::constants::SQUARES;
 use crate::value_holder::ValueHolder;
 use crate::bot::Bot;
@@ -22,7 +24,7 @@ use crate::move_data::MoveData;
 use crate::constants::square_to_index;
 use crate::board::Board;
 
-pub const STARTING_FEN:       &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
+pub const STARTING_POS:       &str = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
 pub const KIWIPETE:           &str = "r3k2r/p1ppqpb1/bn2pnp1/3PN3/1p2P3/2N2Q1p/PPPBBPPP/R3K2R w KQkq - 0 1";
 pub const TEST_POSITION_4:    &str = "r3k2r/Pppp1ppp/1b3nbN/nP6/BBP1P3/q4N2/Pp1P2PP/R2Q1RK1 w kq - 0 1";
 pub const DRAWN_ENDGAME:      &str = "8/8/8/3k4/R5p1/P5r1/4K3/8 w - - 0 1";
@@ -34,7 +36,7 @@ pub const ZUGZWANG_MATE_IN_3: &str = "7k/5Q2/3p4/1p2r1p1/3B2Pp/1p5P/8/6K1 w - - 
 
 fn main() {
 	// precalculated_data::calculate();
-	let mut bot = Bot::new(STARTING_FEN);
+	let mut bot = Bot::new(KIWIPETE);
 
 	loop {
 		let mut input = String::new();

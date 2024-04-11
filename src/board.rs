@@ -132,56 +132,44 @@ impl Board {
 		pieces::NONE
 	}
 
-	pub fn move_piece(&mut self, data: &MoveData) {
-		let is_white = pieces::is_white(data.piece);
-
-		self.piece_bitboards[data.piece as usize] ^= 1 << data.from;
-
-		if data.capture != pieces::NONE {
-			self.piece_bitboards[data.capture as usize] ^= 1 << data.to;
-			self.color_bitboards[!is_white as usize] ^= 1 << data.to;
-		}
-
-		if flag::is_promotion(data.flag) {
-			self.piece_bitboards[(data.flag + pieces::get_color_offset(data.piece)) as usize] ^= 1 << data.to;
-		} else {
-			self.piece_bitboards[data.piece as usize] ^= 1 << data.to;
-		}
-
-		self.color_bitboards[is_white as usize] ^= 1 << data.from;
-		self.color_bitboards[is_white as usize] ^= 1 << data.to;
+	pub fn toggle_piece(&mut self, piece: u8, square: u8) {
+		let square = 1 << square;
+		self.piece_bitboards[piece as usize] ^= square;
+		self.color_bitboards[pieces::get_color_index(piece)] ^= square;
 	}
 
-	pub fn undo_move_piece(&mut self, data: &MoveData) {
-		let is_white = pieces::is_white(data.piece);
+	pub fn move_piece(&mut self, piece: u8, from: u8, to: u8) {
+		let color = pieces::get_color_index(piece);
+		let from = 1 << from;
+		let to = 1 << to;
 
-		self.piece_bitboards[data.piece as usize] ^= 1 << data.from;
+		self.piece_bitboards[piece as usize] ^= from;
+		self.piece_bitboards[piece as usize] ^= to;
 
-		if data.capture != pieces::NONE {
-			self.piece_bitboards[data.capture as usize] ^= 1 << data.to;
-			self.color_bitboards[!is_white as usize] ^= 1 << data.to;
-		}
-
-		if flag::is_promotion(data.flag) {
-			let promotion_piece = data.flag + pieces::get_color_offset(data.piece);
-
-			self.piece_bitboards[promotion_piece as usize] ^= 1 << data.to;
-		} else {
-			self.piece_bitboards[data.piece as usize] ^= 1 << data.to;
-		}
-
-		self.color_bitboards[is_white as usize] ^= 1 << data.from;
-		self.color_bitboards[is_white as usize] ^= 1 << data.to;
+		self.color_bitboards[color] ^= from;
+		self.color_bitboards[color] ^= to;
 	}
 
 	pub fn make_move(&mut self, data: &MoveData) -> bool {
-		self.move_piece(data);
-
 		let mut current_state = self.history.peek();
+
+		if flag::is_promotion(data.flag) {
+			self.toggle_piece(data.piece, data.from);
+			self.toggle_piece(pieces::build(self.white_to_move, data.flag), data.to);
+		} else {
+			self.move_piece(data.piece, data.from, data.to);
+		}
 
 		if data.flag == flag::DOUBLE_PAWN_PUSH {
 			current_state.en_passant_square = (data.to as i8 - PAWN_PUSH[self.white_to_move as usize]) as u8;
 		} else {
+			if data.flag == flag::EN_PASSANT {
+				let pawn_square = current_state.en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
+				self.toggle_piece(data.capture, pawn_square as u8);
+			} else if data.capture != pieces::NONE {
+				self.toggle_piece(data.capture, data.to);
+			}
+
 			current_state.en_passant_square = 0;
 
 			let piece_type = pieces::get_type(data.piece);
@@ -190,25 +178,11 @@ impl Board {
 				current_state.castling_rights.remove_both(self.white_to_move);
 
 				if data.flag == flag::CASTLE_KINGSIDE {
-					let rook = pieces::build(self.white_to_move, pieces::ROOK) as usize;
-					let rook_from = 1 << (data.to + 1);
-					let rook_to = 1 << (data.to - 1);
-
-					self.piece_bitboards[rook] ^= rook_from;
-					self.piece_bitboards[rook] ^= rook_to;
-
-					self.color_bitboards[self.white_to_move as usize] ^= rook_from;
-					self.color_bitboards[self.white_to_move as usize] ^= rook_to;
+					let rook = pieces::build(self.white_to_move, pieces::ROOK);
+					self.move_piece(rook, data.to + 1, data.to - 1);
 				} else if data.flag == flag::CASTLE_QUEENSIDE {
-					let rook = pieces::build(self.white_to_move, pieces::ROOK) as usize;
-					let rook_from = 1 << (data.to - 2);
-					let rook_to = 1 << (data.to + 1);
-
-					self.piece_bitboards[rook] ^= rook_from;
-					self.piece_bitboards[rook] ^= rook_to;
-
-					self.color_bitboards[self.white_to_move as usize] ^= rook_from;
-					self.color_bitboards[self.white_to_move as usize] ^= rook_to;
+					let rook = pieces::build(self.white_to_move, pieces::ROOK);
+					self.move_piece(rook, data.to - 2, data.to + 1);
 				}
 			} else if piece_type == pieces::ROOK {
 				current_state.castling_rights.remove_one(data.from);
@@ -234,10 +208,28 @@ impl Board {
 
 	pub fn undo_move(&mut self, data: &MoveData) {
 		if !self.history.is_empty() {
-			self.undo_move_piece(data);
-
 			self.history.pop();
 			self.white_to_move = !self.white_to_move;
+
+			if flag::is_promotion(data.flag) {
+				self.toggle_piece(data.piece, data.from);
+				self.toggle_piece(pieces::build(self.white_to_move, data.flag), data.to);
+			} else {
+				self.move_piece(data.piece, data.to, data.from);
+			}
+
+			if data.flag == flag::EN_PASSANT {
+				let pawn_square = self.history.peek().en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
+				self.toggle_piece(data.capture, pawn_square as u8);
+			} else if data.flag == flag::CASTLE_KINGSIDE {
+				let rook = pieces::build(self.white_to_move, pieces::ROOK);
+				self.move_piece(rook, data.to - 1, data.to + 1);
+			} else if data.flag == flag::CASTLE_QUEENSIDE {
+				let rook = pieces::build(self.white_to_move, pieces::ROOK);
+				self.move_piece(rook, data.to + 1, data.to - 2);
+			} else if data.capture != pieces::NONE {
+				self.toggle_piece(data.capture, data.to);
+			}
 		}
 	}
 
@@ -333,6 +325,27 @@ impl Board {
 					);
 				}
 			}
+
+
+			// En passant
+			let en_passant_square = self.history.peek().en_passant_square;
+			if en_passant_square != 0 {
+				let bitboard =
+					  PAWN_ATTACKS[piece_index as usize][is_white_piece as usize]
+					& (1 << en_passant_square);
+				if bitboard != 0 {
+					let index = get_lsb(bitboard);
+					moves.push(
+						MoveData {
+							from: piece_index,
+							to: en_passant_square,
+							piece,
+							capture: pieces::build(!is_white_piece, pieces::PAWN),
+							flag: flag::EN_PASSANT,
+						}
+					);
+				}
+			}
 		} else {
 			let mut bitboard =
 				if piece_type == pieces::KNIGHT {
@@ -355,6 +368,7 @@ impl Board {
 
 				if castling_rights.kingside[is_white_piece as usize]
 				&& CASTLE_KINGSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
+				&& !self.in_check()
 				&& self.get_attackers_of(piece_index + 1) == 0 {
 					moves.push(
 						MoveData {
@@ -365,8 +379,11 @@ impl Board {
 							flag: flag::CASTLE_KINGSIDE,
 						}
 					);
-				} else if castling_rights.queenside[is_white_piece as usize]
+				}
+
+				if castling_rights.queenside[is_white_piece as usize]
 				&& CASTLE_QUEENSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
+				&& !self.in_check()
 				&& self.get_attackers_of(piece_index - 1) == 0 {
 					moves.push(
 						MoveData {
