@@ -24,7 +24,6 @@ pub const NULL_MOVE: MoveData = MoveData {
 	from: 0,
 	to: 0,
 	piece: pieces::NONE,
-	capture: pieces::NONE,
 	flag: flag::NONE,
 };
 
@@ -33,7 +32,6 @@ pub struct MoveData {
 	pub from: u8,
 	pub to: u8,
 	pub piece: u8,
-	pub capture: u8,
 	pub flag: u8,
 }
 
@@ -43,7 +41,6 @@ impl Default for MoveData {
 			from: 0,
 			to: 0,
 			piece: pieces::NONE,
-			capture: pieces::NONE,
 			flag: flag::NONE,
 		}
 	}

@@ -7,3 +7,9 @@ edition = "2021"
 
 [dependencies]
 rand = "0.8.5"
+
+[profile.optimized]
+inherits = "release"
+codegen-units = 1
+lto = "fat"
+opt-level = 3

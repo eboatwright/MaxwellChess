@@ -14,6 +14,7 @@ pub const CAPTURES_ONLY: bool = true;
 
 #[derive(Copy, Clone)]
 pub struct BoardState {
+	pub capture: u8,
 	pub castling_rights: CastlingRights,
 	pub en_passant_square: u8,
 }
@@ -55,6 +56,7 @@ impl Board {
 
 			history: ValueHolder::new(
 				BoardState {
+					capture: pieces::NONE,
 					castling_rights: CastlingRights::from_str(fen_split[2]),
 					en_passant_square: square_to_index(fen_split[3]),
 				}
@@ -152,6 +154,7 @@ impl Board {
 
 	pub fn make_move(&mut self, data: &MoveData) -> bool {
 		let mut current_state = self.history.peek();
+		current_state.capture = self.get(data.to);
 
 		if flag::is_promotion(data.flag) {
 			self.toggle_piece(data.piece, data.from);
@@ -165,9 +168,11 @@ impl Board {
 		} else {
 			if data.flag == flag::EN_PASSANT {
 				let pawn_square = current_state.en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
-				self.toggle_piece(data.capture, pawn_square as u8);
-			} else if data.capture != pieces::NONE {
-				self.toggle_piece(data.capture, data.to);
+				let pawn_captured = pieces::build(!self.white_to_move, pieces::PAWN);
+				self.toggle_piece(pawn_captured, pawn_square as u8);
+				current_state.capture = pawn_captured;
+			} else if current_state.capture != pieces::NONE {
+				self.toggle_piece(current_state.capture, data.to);
 			}
 
 			current_state.en_passant_square = 0;
@@ -189,7 +194,7 @@ impl Board {
 			}
 		}
 
-		if pieces::get_type(data.capture) == pieces::ROOK {
+		if pieces::get_type(current_state.capture) == pieces::ROOK {
 			current_state.castling_rights.remove_one(data.to);
 		}
 
@@ -208,6 +213,7 @@ impl Board {
 
 	pub fn undo_move(&mut self, data: &MoveData) {
 		if !self.history.is_empty() {
+			let last_state = self.history.peek();
 			self.history.pop();
 			self.white_to_move = !self.white_to_move;
 
@@ -220,15 +226,15 @@ impl Board {
 
 			if data.flag == flag::EN_PASSANT {
 				let pawn_square = self.history.peek().en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
-				self.toggle_piece(data.capture, pawn_square as u8);
+				self.toggle_piece(last_state.capture, pawn_square as u8);
 			} else if data.flag == flag::CASTLE_KINGSIDE {
 				let rook = pieces::build(self.white_to_move, pieces::ROOK);
 				self.move_piece(rook, data.to - 1, data.to + 1);
 			} else if data.flag == flag::CASTLE_QUEENSIDE {
 				let rook = pieces::build(self.white_to_move, pieces::ROOK);
 				self.move_piece(rook, data.to + 1, data.to - 2);
-			} else if data.capture != pieces::NONE {
-				self.toggle_piece(data.capture, data.to);
+			} else if last_state.capture != pieces::NONE {
+				self.toggle_piece(last_state.capture, data.to);
 			}
 		}
 	}
@@ -257,7 +263,6 @@ impl Board {
 									from: piece_index,
 									to: single_push,
 									piece,
-									capture: pieces::NONE,
 									flag: promotion,
 								}
 							);
@@ -268,7 +273,6 @@ impl Board {
 								from: piece_index,
 								to: single_push,
 								piece,
-								capture: pieces::NONE,
 								flag: flag::NONE,
 							}
 						);
@@ -283,7 +287,6 @@ impl Board {
 									from: piece_index,
 									to: double_push,
 									piece,
-									capture: pieces::NONE,
 									flag: flag::DOUBLE_PAWN_PUSH,
 								}
 							);
@@ -308,7 +311,6 @@ impl Board {
 								from: piece_index,
 								to: capture_index,
 								piece,
-								capture,
 								flag: promotion,
 							}
 						);
@@ -319,7 +321,6 @@ impl Board {
 							from: piece_index,
 							to: capture_index,
 							piece,
-							capture,
 							flag: flag::NONE,
 						}
 					);
@@ -340,7 +341,6 @@ impl Board {
 							from: piece_index,
 							to: en_passant_square,
 							piece,
-							capture: pieces::build(!is_white_piece, pieces::PAWN),
 							flag: flag::EN_PASSANT,
 						}
 					);
@@ -375,7 +375,6 @@ impl Board {
 							from: piece_index,
 							to: piece_index + 2,
 							piece,
-							capture: pieces::NONE,
 							flag: flag::CASTLE_KINGSIDE,
 						}
 					);
@@ -390,7 +389,6 @@ impl Board {
 							from: piece_index,
 							to: piece_index - 2,
 							piece,
-							capture: pieces::NONE,
 							flag: flag::CASTLE_QUEENSIDE,
 						}
 					);
@@ -406,7 +404,6 @@ impl Board {
 						from: piece_index,
 						to: move_index,
 						piece,
-						capture,
 						flag: flag::NONE,
 					}
 				);
