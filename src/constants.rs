@@ -1,6 +1,15 @@
+use crate::MAX_DEPTH;
 use std::ops::Range;
 
-pub const CHECKMATE: i32 = 100_000;
+pub const CHECKMATE: i16 = i16::MAX;
+
+pub fn is_checkmate(eval: i16) -> bool {
+	eval.abs() > CHECKMATE - MAX_DEPTH as i16
+}
+
+pub fn ply_from_mate(eval: i16) -> u8 {
+	(CHECKMATE - eval.abs()) as u8
+}
 
 pub const A_FILE: u64 = 0x_8080808080808080;
 pub const B_FILE: u64 = A_FILE >> 1;

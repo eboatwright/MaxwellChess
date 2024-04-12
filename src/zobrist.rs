@@ -1,4 +1,5 @@
-use crate::Board;
+use crate::flag;
+use crate::board::{Board, BoardState};
 use crate::move_data::MoveData;
 use crate::pieces;
 use crate::value_holder::ValueHolder;
@@ -13,7 +14,7 @@ pub struct Zobrist {
 
 	pieces: [[u64; pieces::COUNT as usize]; 64],
 	castling_rights: [u64; 16],
-	en_passant: [u64; 9],
+	en_passant: [u64; 8],
 	side_to_move: u64,
 }
 
@@ -24,7 +25,7 @@ impl Zobrist {
 
 			pieces: [[0; pieces::COUNT as usize]; 64],
 			castling_rights: [0; 16],
-			en_passant: [0; 9],
+			en_passant: [0; 8],
 			side_to_move: 0,
 		}
 	}
@@ -52,7 +53,7 @@ impl Zobrist {
 
 		key ^= zobrist.castling_rights[board_state.castling_rights.0 as usize];
 
-		for i in 0..9 {
+		for i in 0..8 {
 			zobrist.en_passant[i] = rng.gen::<u64>();
 		}
 
@@ -70,11 +71,44 @@ impl Zobrist {
 		zobrist
 	}
 
-	pub fn make_move(&mut self, move_data: &MoveData) {
-		// TODO
+	pub fn make_move(&mut self, move_data: &MoveData, previous_state: &BoardState, current_state: &BoardState) {
+		let mut new_key = self.key.peek();
+
+		new_key ^= self.pieces[move_data.from as usize][move_data.piece as usize];
+
+		if flag::is_promotion(move_data.flag) {
+			new_key ^= self.pieces[move_data.to as usize][pieces::build(pieces::is_white(move_data.piece), move_data.flag) as usize];
+		} else {
+			new_key ^= self.pieces[move_data.to as usize][move_data.piece as usize];
+
+			if move_data.flag == flag::CASTLE_KINGSIDE {
+				let rook = pieces::build(pieces::is_white(move_data.piece), pieces::ROOK) as usize;
+				new_key ^= self.pieces[move_data.to as usize + 1][rook];
+				new_key ^= self.pieces[move_data.to as usize - 1][rook];
+			} else if move_data.flag == flag::CASTLE_QUEENSIDE {
+				let rook = pieces::build(pieces::is_white(move_data.piece), pieces::ROOK) as usize;
+				new_key ^= self.pieces[move_data.to as usize - 2][rook];
+				new_key ^= self.pieces[move_data.to as usize + 1][rook];
+			}
+		}
+
+		new_key ^= previous_state.castling_rights.0 as u64;
+		new_key ^= current_state.castling_rights.0 as u64;
+
+		if previous_state.en_passant_square != 0 {
+			new_key ^= (previous_state.en_passant_square % 8) as u64;
+		}
+
+		if current_state.en_passant_square != 0 {
+			new_key ^= (current_state.en_passant_square % 8) as u64;
+		}
+
+		new_key ^= self.side_to_move;
+
+		self.key.push(new_key);
 	}
 
 	pub fn undo_move(&mut self, move_data: &MoveData) {
-		// TODO
+		self.key.pop();
 	}
 }

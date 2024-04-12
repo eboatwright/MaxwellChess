@@ -1,7 +1,7 @@
 use crate::move_data::MoveData;
 
 pub struct MoveList {
-	pub moves: Vec<(MoveData, i32)>,
+	pub moves: Vec<(MoveData, i16)>,
 }
 
 impl MoveList {
@@ -19,7 +19,7 @@ impl MoveList {
 		self.moves.push((value, 0));
 	}
 
-	pub fn pop(&mut self) -> Option<(MoveData, i32)> {
+	pub fn pop(&mut self) -> Option<(MoveData, i16)> {
 		self.moves.pop()
 	}
 

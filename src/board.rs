@@ -212,6 +212,7 @@ impl Board {
 			current_state.en_passant_square = 0;
 		}
 
+		self.zobrist.make_move(&data, &self.history.peek(), &current_state);
 		self.history.push(current_state);
 
 		if self.in_check() {
@@ -228,6 +229,7 @@ impl Board {
 	pub fn undo_move(&mut self, data: &MoveData) {
 		if !self.history.is_empty() {
 			let last_state = self.history.peek();
+			self.zobrist.undo_move(&data);
 			self.history.pop();
 			self.white_to_move = !self.white_to_move;
 
@@ -459,11 +461,11 @@ impl Board {
 		false
 	}
 
-	pub fn perspective(&self) -> i32 {
+	pub fn perspective(&self) -> i16 {
 		if self.white_to_move { 1 } else { -1 }
 	}
 
-	pub fn simple_eval(&self) -> i32 {
+	pub fn simple_eval(&self) -> i16 {
 		let mut material_balance = 0;
 
 		for piece in 0..pieces::COUNT {

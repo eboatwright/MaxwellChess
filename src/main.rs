@@ -16,7 +16,7 @@ pub mod board;
 pub mod perft;
 pub mod bot;
 
-use crate::bot::Bot;
+use crate::bot::*;
 use std::time::Instant;
 use crate::move_data::flag;
 use crate::board::Board;
@@ -43,21 +43,113 @@ fn main() {
 		let split = input.split(' ').collect::<Vec<&str>>();
 
 		match split[0] {
-			"go" => {
-				bot.go();
+			// UCI commands
+
+			"uci" => {
+				println!("id name Maxwell v4.0");
+				println!("id author eboatwright");
+				println!("option name Hash type spin default 256 min 0 max 4000");
+
+				println!("uciok");
 			}
 
+			"setoption" => {
+				if let Some(option_name) = split.get(2) {
+					if let Some(value) = split.get(4) {
+						match *option_name {
+							"Hash" => {
+								bot.transposition_table.resize(value.parse::<usize>().unwrap_or(256));
+							}
+
+							"Threads" => {
+								// TODO
+							}
+
+							_ => {}
+						}
+					}
+				}
+			}
+
+			"isready" => {
+				println!("readyok");
+			}
+
+			"ucinewgame" => {
+				let mbs = bot.transposition_table.mbs;
+				bot = Bot::new(STARTING_POS, mbs);
+			}
+
+			"position" => {
+				if let Some(position_type) = split.get(1) {
+					match *position_type {
+						"startpos" => {
+							// TODO
+						}
+
+						"fen" => {
+							// TODO
+						}
+
+						_ => {}
+					}
+				}
+			}
+
+			"go" => {
+				if let Some(prefix) = split.get(1) {
+					let mut movetime = None;
+					let mut depth = MAX_DEPTH;
+
+					match *prefix { // TODO: movetime, wtime, btime
+						"fulltime" => { // This isn't part of the UCI interface, but it's useful :)
+							if let Some(_movetime) = split.get(2) {
+								if let Ok(_movetime) = _movetime.parse::<f32>() {
+									movetime = Some(_movetime / 1000.0);
+								}
+							}
+						}
+
+						"depth" => {
+							if let Some(_depth) = split.get(2) {
+								if let Ok(_depth) = _depth.parse::<u8>() {
+									depth = _depth;
+								}
+							}
+						}
+
+						_ => {}
+					}
+
+					bot.go(movetime, depth);
+				}
+			}
+
+			"stop" => {
+				// TODO: stop threads
+			}
+
+			"quit" => {
+				return;
+			}
+
+			// My commands
+
 			"move" => {
-				if bot.board.try_move(split[1]) {
-					bot.board.print();
-				} else {
-					println!("Illegal move.");
+				if let Some(coordinates) = split.get(1) {
+					if bot.board.try_move(coordinates) {
+						bot.board.print();
+					} else {
+						println!("Illegal move.");
+					}
 				}
 			}
 
 			"perft" => {
-				if let Ok(depth) = split[1].parse::<u8>() {
-					perft::run(bot.board.clone(), depth);
+				if let Some(depth) = split.get(1) {
+					if let Ok(depth) = depth.parse::<u8>() {
+						perft::run(bot.board.clone(), depth);
+					}
 				}
 			}
 

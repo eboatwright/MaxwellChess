@@ -22,3 +22,11 @@ pub fn print_bitboard(bitboard: u64) {
 	}
 	println!();
 }
+
+pub fn get_sign(x: i16) -> i16 {
+	if x > 0 {
+		1
+	} else {
+		-1
+	}
+}

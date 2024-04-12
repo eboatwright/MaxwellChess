@@ -27,7 +27,7 @@ pub const NULL_MOVE: MoveData = MoveData {
 	flag: flag::NONE,
 };
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq)]
 pub struct MoveData {
 	pub from: u8,
 	pub to: u8,
