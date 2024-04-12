@@ -1,5 +1,4 @@
 misc
-	multithreaded perft tests
 	zobrist hashing
 		initial calculation
 		make move
@@ -21,8 +20,6 @@ bot
 	lmr
 	check extension
 	move sorting
-		move list structure - incremental move sorting
-		mvv lvs
 		previous best move
 		transposition table move
 	multithreading

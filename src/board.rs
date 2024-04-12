@@ -441,7 +441,7 @@ impl Board {
 
 		let mut move_list = MoveList::new();
 		self.get_moves_for_piece(data.from, ALL_MOVES, &mut move_list);
-		for m in move_list.moves {
+		for (m, _) in move_list.moves {
 			if m.to == data.to
 			&& (data.flag == flag::NONE || data.flag == m.flag) {
 				return self.make_move(&m);

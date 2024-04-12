@@ -1,3 +1,4 @@
+use crate::move_list::MoveList;
 use crate::constants::CHECKMATE;
 use crate::pieces;
 use crate::move_data::{NULL_MOVE, MoveData};
@@ -5,6 +6,15 @@ use crate::board::*;
 use std::time::Instant;
 
 pub const MAX_DEPTH: u8 = 100;
+
+pub const MVV_LVA: [i32; 36] = [
+	15, 25, 35, 45, 55, 65, // Pawn
+	14, 24, 34, 44, 54, 64, // Knight
+	13, 23, 33, 43, 53, 63, // Bishop
+	12, 22, 32, 42, 52, 62, // Rook
+	11, 21, 31, 41, 51, 61, // Queen
+	10, 20, 30, 40, 50, 60, // King
+];
 
 pub struct Bot {
 	pub timer: Instant,
@@ -46,7 +56,7 @@ impl Bot {
 		self.timer = Instant::now();
 
 		// for depth in 1..=MAX_DEPTH {
-		self.ab_search(6, 0, -i32::MAX, i32::MAX);
+		self.ab_search(8, 0, -i32::MAX, i32::MAX);
 
 		self.best_move = self.best_move_this_iteration;
 		self.best_eval = self.best_eval_this_iteration;
@@ -67,13 +77,13 @@ impl Bot {
 			self.nodes += 1;
 		}
 
-		let move_list = self.board.get_moves(ALL_MOVES);
 		let mut found_legal_move = false;
+		let mut move_list = self.board.get_moves(ALL_MOVES);
+		self.score_move_list(&mut move_list);
 
-		for m in move_list.moves {
-			if !self.board.make_move(&m) {
-				continue;
-			}
+		for i in 0..move_list.len() {
+			let m = move_list.next(i);
+			if !self.board.make_move(&m) { continue; }
 
 			found_legal_move = true;
 
@@ -118,11 +128,12 @@ impl Bot {
 			alpha = eval;
 		}
 
-		let move_list = self.board.get_moves(CAPTURES_ONLY);
-		for m in move_list.moves {
-			if !self.board.make_move(&m) {
-				continue;
-			}
+		let mut move_list = self.board.get_moves(CAPTURES_ONLY);
+		self.score_move_list(&mut move_list);
+
+		for i in 0..move_list.len() {
+			let m = move_list.next(i);
+			if !self.board.make_move(&m) { continue; }
 
 			let eval = -self.q_search(-beta, -alpha);
 			self.board.undo_move(&m);
@@ -137,5 +148,14 @@ impl Bot {
 		}
 
 		alpha
+	}
+
+	pub fn score_move_list(&mut self, move_list: &mut MoveList) {
+		for (m, score) in move_list.moves.iter_mut() {
+			let capture = self.board.get(m.to);
+			if capture != pieces::NONE {
+				*score = MVV_LVA[(pieces::get_type(m.piece) * 6 + pieces::get_type(capture)) as usize];
+			}
+		}
 	}
 }

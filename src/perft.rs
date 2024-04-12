@@ -37,7 +37,7 @@ fn perft(board: &mut Board, depth: u8, results: &mut PerftResults, root: bool) {
 	}
 
 	let move_list = board.get_moves(ALL_MOVES);
-	for m in move_list.moves {
+	for (m, _) in move_list.moves {
 		if !board.make_move(&m) { continue; }
 
 		let leaf_nodes_before_move = results.leaf_nodes;
