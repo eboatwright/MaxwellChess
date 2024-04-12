@@ -49,6 +49,8 @@ impl Default for MoveData {
 impl MoveData {
 	pub fn from_binary(binary: u16) -> Self {
 		Self {
+			// (from)    (to)      (flag?)
+			// 000000    000000    0000
 			from: ((binary & 0b111111_000000) >> 6) as u8,
 			to: (binary & 0b000000_111111) as u8,
 			..Default::default()

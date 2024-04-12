@@ -1,3 +1,4 @@
+use crate::piece_square_tables::PSTS;
 use crate::zobrist::Zobrist;
 use crate::move_list::MoveList;
 use crate::value_holder::ValueHolder;
@@ -32,7 +33,7 @@ pub struct Board {
 }
 
 impl Board {
-	pub fn new(fen: &'static str) -> Self {
+	pub fn new(fen: &str) -> Self {
 		let fen_split = fen.split(' ').collect::<Vec<&str>>();
 		let fen_pieces = fen_split[0].replace('/', "");
 
@@ -55,14 +56,14 @@ impl Board {
 		let mut board = Self {
 			piece_bitboards,
 			color_bitboards,
-			white_to_move: fen_split[1] == "w",
+			white_to_move: fen_split.get(1).unwrap_or(&"w") == &"w",
 
 			zobrist: Zobrist::empty(),
 			history: ValueHolder::new(
 				BoardState {
 					capture: pieces::NONE,
-					castling_rights: CastlingRights::from_str(fen_split[2]),
-					en_passant_square: square_to_index(fen_split[3]),
+					castling_rights: CastlingRights::from_str(fen_split.get(2).unwrap_or(&"-")),
+					en_passant_square: square_to_index(fen_split.get(3).unwrap_or(&"-")),
 				}
 			),
 		};
@@ -471,8 +472,14 @@ impl Board {
 		for piece in 0..pieces::COUNT {
 			let mut bitboard = self.piece_bitboards[piece as usize];
 			while bitboard != 0 {
-				let _ = pop_lsb(&mut bitboard);
-				material_balance += pieces::VALUES[pieces::get_type(piece) as usize] * pieces::get_eval_multiplier(piece);
+				let mut square = pop_lsb(&mut bitboard) as usize;
+				let color = pieces::get_eval_multiplier(piece);
+
+				if color == -1 {
+					square = 63 - square;
+				}
+
+				material_balance += PSTS[pieces::get_type(piece) as usize][square] * color;
 			}
 		}
 

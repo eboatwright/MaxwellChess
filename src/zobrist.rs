@@ -109,6 +109,7 @@ impl Zobrist {
 	}
 
 	pub fn undo_move(&mut self, move_data: &MoveData) {
+		// TODO: is it faster to incrementally undo, or use history?
 		self.key.pop();
 	}
 }

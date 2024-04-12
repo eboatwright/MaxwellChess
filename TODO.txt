@@ -1,7 +1,15 @@
 misc
-	uci
-		position
-		go
+	draw detection
+		threefold repetition
+		insufficient material
+		50 move rule
+
+texel
+	collect all the positions
+	layout routine
+		collect positions from X amount of games
+		adjust weights based on that
+		use new weights on the next iteration
 
 bot
 	pvs

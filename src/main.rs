@@ -2,6 +2,8 @@
 #![allow(unused_variables)]
 #![allow(unused_imports)]
 
+pub mod piece_square_tables;
+pub mod texel;
 pub mod value_holder;
 pub mod constants;
 pub mod precalculated_data;
@@ -16,6 +18,8 @@ pub mod board;
 pub mod perft;
 pub mod bot;
 
+use crate::move_data::MoveData;
+use crate::texel::texel_tuning;
 use crate::bot::*;
 use std::time::Instant;
 use crate::move_data::flag;
@@ -33,7 +37,7 @@ pub const ZUGZWANG_MATE_IN_3: &str = "7k/5Q2/3p4/1p2r1p1/3B2Pp/1p5P/8/6K1 w - - 
 
 fn main() {
 	// precalculated_data::calculate();
-	let mut bot = Bot::new(KIWIPETE, 256);
+	let mut bot = Bot::new(STARTING_POS, 256);
 
 	loop {
 		let mut input = String::new();
@@ -84,28 +88,66 @@ fn main() {
 				if let Some(position_type) = split.get(1) {
 					match *position_type {
 						"startpos" => {
-							// TODO
+							bot.board = Board::new(STARTING_POS);
 						}
 
+						// position fen rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1 moves e2e4 e7e5
 						"fen" => {
-							// TODO
+							// I just pass in everything after "fen", because Board::new() will just ignore what it doesn't need :)
+							let fen = &split[2..].join(" ");
+							bot.board = Board::new(fen);
 						}
 
 						_ => {}
+					}
+
+					if let Some(mut moves_start) = split.iter().position(|&x| x == "moves") {
+						while moves_start < split.len() - 1 {
+							moves_start += 1;
+
+							if !bot.board.try_move(split[moves_start]) {
+								println!("Illegal move! {}", split[moves_start]);
+								break;
+							}
+						}
 					}
 				}
 			}
 
 			"go" => {
-				if let Some(prefix) = split.get(1) {
-					let mut movetime = None;
-					let mut depth = MAX_DEPTH;
+				let mut movetime = None;
+				let mut depth = MAX_DEPTH;
 
-					match *prefix { // TODO: movetime, wtime, btime
+				if let Some(prefix) = split.get(1) {
+					match *prefix {
 						"fulltime" => { // This isn't part of the UCI interface, but it's useful :)
 							if let Some(_movetime) = split.get(2) {
 								if let Ok(_movetime) = _movetime.parse::<f32>() {
 									movetime = Some(_movetime / 1000.0);
+								}
+							}
+						}
+
+						// Engine expects this to be: go wtime X btime Y
+						"wtime" => {
+							let time_index =
+								if bot.board.white_to_move {
+									2
+								} else {
+									4
+								};
+
+							if let Some(_movetime) = split.get(time_index) {
+								if let Ok(_movetime) = _movetime.parse::<f32>() {
+									movetime = Some(bot.partition_time(_movetime / 1000.0));
+								}
+							}
+						}
+
+						"movetime" => {
+							if let Some(_movetime) = split.get(2) {
+								if let Ok(_movetime) = _movetime.parse::<f32>() {
+									movetime = Some(bot.partition_time(_movetime / 1000.0));
 								}
 							}
 						}
@@ -120,13 +162,14 @@ fn main() {
 
 						_ => {}
 					}
-
-					bot.go(movetime, depth);
 				}
+
+				bot.go(movetime, depth, BotOutput::Uci);
 			}
 
 			"stop" => {
-				// TODO: stop threads
+				// This should stop the engine once I get it multithreaded
+				bot.search_cancelled = true;
 			}
 
 			"quit" => {
@@ -155,6 +198,10 @@ fn main() {
 
 			"print" => {
 				bot.board.print();
+			}
+
+			"texel" => {
+				texel_tuning();
 			}
 
 			_ => {}

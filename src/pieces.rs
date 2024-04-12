@@ -22,15 +22,6 @@ pub const WHITE_ROOK:     u8 = ROOK + 6;
 pub const WHITE_QUEEN:    u8 = QUEEN + 6;
 pub const WHITE_KING:     u8 = KING + 6;
 
-pub const VALUES: [i16; 6] = [
-	100,
-	310,
-	330,
-	500,
-	900,
-	0,
-];
-
 pub const NONE: u8 = 12;
 pub const COUNT: u8 = 12;
 

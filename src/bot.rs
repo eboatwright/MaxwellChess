@@ -1,3 +1,4 @@
+use crate::constants::{is_checkmate, ply_from_mate};
 use crate::transposition_table::{TranspositionTable, TTEntry, EvalBound};
 use crate::move_list::MoveList;
 use crate::constants::CHECKMATE;
@@ -7,6 +8,12 @@ use crate::board::*;
 use std::time::Instant;
 
 pub const MAX_DEPTH: u8 = 100;
+
+#[derive(Copy, Clone, PartialEq)]
+pub enum BotOutput {
+	None,
+	Uci,
+}
 
 pub const MVV_LVA: [i16; 36] = [
 	15, 25, 35, 45, 55, 65, // Pawn
@@ -29,15 +36,17 @@ pub struct Bot {
 
 	pub best_move_this_iteration: MoveData,
 	pub best_eval_this_iteration: i16,
+	pub seldepth: u8,
 
 	pub timer: Instant,
 	pub movetime: Option<f32>,
+	pub output: BotOutput,
 	pub search_cancelled: bool,
 	pub searched_one_move: bool,
 }
 
 impl Bot {
-	pub fn new(fen: &'static str, tt_mbs: usize) -> Self {
+	pub fn new(fen: &str, tt_mbs: usize) -> Self {
 		Self {
 			board: Board::new(fen),
 			transposition_table: TranspositionTable::new(tt_mbs),
@@ -50,15 +59,18 @@ impl Bot {
 
 			best_move_this_iteration: NULL_MOVE,
 			best_eval_this_iteration: 0,
+			seldepth: 0,
 
 			timer: Instant::now(),
 			movetime: None,
+			output: BotOutput::Uci,
 			search_cancelled: false,
 			searched_one_move: false,
 		}
 	}
 
-	pub fn go(&mut self, movetime: Option<f32>, max_depth: u8) {
+	pub fn go(&mut self, movetime: Option<f32>, max_depth: u8, output: BotOutput) {
+		self.output = output;
 		self.movetime = movetime;
 
 		self.nodes = 0;
@@ -81,7 +93,23 @@ impl Bot {
 				self.best_move = self.best_move_this_iteration;
 				self.best_eval = self.best_eval_this_iteration;
 
-				println!("depth: {}, best move: {}, eval: {}", depth, self.best_move.to_coordinates(), self.best_eval);
+				if is_checkmate(self.best_eval) {
+					let ply = ply_from_mate(self.best_eval);
+
+					if ply <= depth {
+						self.print_uci_info(
+							depth,
+							"mate",
+							(ply as f32 * 0.5).ceil() as i16 * self.board.perspective()
+						);
+					}
+				} else {
+					self.print_uci_info(
+						depth,
+						"cp",
+						self.best_eval,
+					);
+				}
 			}
 
 			if self.search_cancelled {
@@ -89,14 +117,11 @@ impl Bot {
 			}
 		}
 
-		let seconds = self.timer.elapsed().as_secs_f32();
-		let total_nodes = self.nodes + self.q_nodes;
-		println!("({} nodes + {} q nodes = {} total nodes) / {} seconds = {} NPS", self.nodes, self.q_nodes, total_nodes, seconds, total_nodes as f32 / seconds);
-		self.transposition_table.print();
+		println!("bestmove {}", self.best_move.to_coordinates());
 	}
 
 	pub fn should_cancel_search(&self) -> bool {
-		self.search_cancelled || (self.movetime.is_some() && self.nodes % 50_000 == 0 && self.timer.elapsed().as_secs_f32() >= self.movetime.unwrap())
+		self.search_cancelled || (self.movetime.is_some() && self.nodes % 20_000 == 0 && self.timer.elapsed().as_secs_f32() >= self.movetime.unwrap())
 	}
 
 	pub fn ab_search(&mut self, depth: u8, ply: u8, mut alpha: i16, beta: i16) -> i16 {
@@ -113,6 +138,7 @@ impl Bot {
 
 		if ply != 0 {
 			self.nodes += 1;
+			self.seldepth = u8::max(self.seldepth, depth);
 
 			if let Some(tt_eval) = tt_eval {
 				return tt_eval;
@@ -238,5 +264,55 @@ impl Bot {
 				}
 			}
 		}
+	}
+
+	// TODO: tweak this
+	pub fn partition_time(&self, total_time: f32) -> f32 {
+		total_time * 0.05
+	}
+
+	pub fn print_uci_info(&mut self, depth: u8, score_type: &'static str, score: i16) {
+		if self.output != BotOutput::Uci {
+			return;
+		}
+
+		let time_elapsed = self.timer.elapsed();
+		let total_nodes = self.nodes + self.q_nodes;
+		let pv = self.find_pv(depth);
+
+		println!("info depth {depth} seldepth {seldepth} score {score_type} {score} currmove {currmove} pv {pv}nodes {nodes} time {time} nps {nps}",
+			depth = depth,
+			seldepth = self.seldepth,
+			score_type = score_type,
+			score = score,
+			currmove = self.best_move.to_coordinates(),
+			pv = pv,
+			nodes = total_nodes,
+			time = time_elapsed.as_millis(),
+			nps = total_nodes as f32 / time_elapsed.as_secs_f32(),
+		);
+	}
+
+	pub fn find_pv(&mut self, depth: u8) -> String {
+		if depth == 0 {
+			return String::new();
+		}
+
+		if let Some(entry) = self.transposition_table.get(self.board.zobrist.key.peek()) {
+			// let hash_move = MoveData::from_binary(entry.best_move);
+			let m = entry.best_move.to_coordinates();
+
+			if !self.board.try_move(&m) {
+				return String::new();
+			}
+
+			let pv = format!("{} {}", m, self.find_pv(depth - 1));
+
+			self.board.undo_move(&entry.best_move);
+
+			return pv;
+		}
+
+		String::new()
 	}
 }

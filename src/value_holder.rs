@@ -12,6 +12,10 @@ impl<T: Copy> ValueHolder<T> {
 		}
 	}
 
+	pub fn len(&self) -> usize {
+		self.history.len()
+	}
+
 	pub fn peek(&self) -> T {
 		self.history[self.index]
 	}
