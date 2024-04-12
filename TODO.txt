@@ -1,6 +1,9 @@
 misc
 	multithreaded perft tests
 	zobrist hashing
+		initial calculation
+		make move
+		undo move
 	uci interface
 		uci
 		setoption

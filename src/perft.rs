@@ -3,14 +3,12 @@ use std::time::Instant;
 use crate::Board;
 
 pub struct PerftResults {
-	pub depth: u8,
 	pub total_nodes: u128,
 	pub leaf_nodes: u128,
 }
 
 pub fn run(mut board: Board, depth: u8) -> PerftResults {
 	let mut results = PerftResults {
-		depth,
 		total_nodes: 0,
 		leaf_nodes: 0,
 	};
@@ -40,9 +38,7 @@ fn perft(board: &mut Board, depth: u8, results: &mut PerftResults, root: bool) {
 
 	let move_list = board.get_moves(ALL_MOVES);
 	for m in move_list.moves {
-		if !board.make_move(&m) {
-			continue;
-		}
+		if !board.make_move(&m) { continue; }
 
 		let leaf_nodes_before_move = results.leaf_nodes;
 

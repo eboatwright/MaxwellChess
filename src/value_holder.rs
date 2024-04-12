@@ -16,6 +16,10 @@ impl<T: Copy> ValueHolder<T> {
 		self.history[self.index]
 	}
 
+	pub fn peek_mut(&mut self) -> &mut T {
+		&mut self.history[self.index]
+	}
+
 	pub fn is_empty(&self) -> bool {
 		self.index == 0
 	}
