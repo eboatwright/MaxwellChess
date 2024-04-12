@@ -1,3 +1,4 @@
+use crate::zobrist::Zobrist;
 use crate::move_list::MoveList;
 use crate::value_holder::ValueHolder;
 use crate::castling_rights::*;
@@ -26,6 +27,7 @@ pub struct Board {
 	pub color_bitboards: [u64; 2],
 	pub white_to_move: bool,
 
+	pub zobrist: Zobrist,
 	pub history: ValueHolder<BoardState>,
 }
 
@@ -50,11 +52,12 @@ impl Board {
 			}
 		}
 
-		Self {
+		let mut board = Self {
 			piece_bitboards,
 			color_bitboards,
 			white_to_move: fen_split[1] == "w",
 
+			zobrist: Zobrist::empty(),
 			history: ValueHolder::new(
 				BoardState {
 					capture: pieces::NONE,
@@ -62,7 +65,11 @@ impl Board {
 					en_passant_square: square_to_index(fen_split[3]),
 				}
 			),
-		}
+		};
+
+		board.zobrist = Zobrist::calculate(&board);
+
+		board
 	}
 
 	pub fn occupied_bitboard(&self) -> u64 {
@@ -123,6 +130,7 @@ impl Board {
 		}
 		println!("---------------------------------");
 		println!("{} to move", if self.white_to_move { "White" } else { "Black" });
+		println!("Zobrist key: {}", self.zobrist.key.peek());
 	}
 
 	pub fn get(&self, i: u8) -> u8 {
@@ -365,7 +373,7 @@ impl Board {
 			} else if piece_type == pieces::KING {
 				let castling_rights = self.history.peek().castling_rights;
 
-				if castling_rights.kingside[is_white_piece as usize]
+				if castling_rights.kingside(is_white_piece)
 				&& CASTLE_KINGSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
 				&& !self.in_check()
 				&& self.get_attackers_of(piece_index + 1) == 0 {
@@ -379,7 +387,7 @@ impl Board {
 					);
 				}
 
-				if castling_rights.queenside[is_white_piece as usize]
+				if castling_rights.queenside(is_white_piece)
 				&& CASTLE_QUEENSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
 				&& !self.in_check()
 				&& self.get_attackers_of(piece_index - 1) == 0 {

@@ -10,6 +10,8 @@ pub mod move_list;
 pub mod utils;
 pub mod pieces;
 pub mod move_data;
+pub mod zobrist;
+pub mod transposition_table;
 pub mod board;
 pub mod perft;
 pub mod bot;
@@ -31,7 +33,7 @@ pub const ZUGZWANG_MATE_IN_3: &str = "7k/5Q2/3p4/1p2r1p1/3B2Pp/1p5P/8/6K1 w - - 
 
 fn main() {
 	// precalculated_data::calculate();
-	let mut bot = Bot::new(KIWIPETE);
+	let mut bot = Bot::new(KIWIPETE, 256);
 
 	loop {
 		let mut input = String::new();

@@ -1,3 +1,4 @@
+use crate::transposition_table::TranspositionTable;
 use crate::move_list::MoveList;
 use crate::constants::CHECKMATE;
 use crate::pieces;
@@ -19,6 +20,7 @@ pub const MVV_LVA: [i32; 36] = [
 pub struct Bot {
 	pub timer: Instant,
 	pub board: Board,
+	pub transposition_table: TranspositionTable,
 
 	pub nodes: u128,
 	pub q_nodes: u128,
@@ -31,10 +33,12 @@ pub struct Bot {
 }
 
 impl Bot {
-	pub fn new(fen: &'static str) -> Self {
+	pub fn new(fen: &'static str, tt_mbs: usize) -> Self {
 		Self {
 			timer: Instant::now(),
 			board: Board::new(fen),
+			transposition_table: TranspositionTable::new(tt_mbs),
+
 			nodes: 0,
 			q_nodes: 0,
 
