@@ -15,7 +15,7 @@ use crate::bot::*;
 use std::process::Command;
 use std::process::Stdio;
 
-pub const GAMES_PER_MATCH: usize = 2;
+pub const GAMES_PER_MATCH: usize = 1_000;
 pub const THREADS: usize = 4;
 pub const TIME_PER_MOVE: f32 = 0.1;
 // pub const K: f32 = 128.0;
@@ -101,7 +101,7 @@ pub const MG_KING_PST: [i16; 64] = {:?};",
 			params[256..320].to_vec(),
 			params[320..384].to_vec(),
 		).expect("Failed to write output file");
-		println!("Done!\n\n");
+		println!("Wrote to file.                \n");
 	}
 }
 
