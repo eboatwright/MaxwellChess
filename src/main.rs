@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(unused_imports)]
+// #![warn(clippy::cast_lossless)]
 
 pub mod piece_square_tables;
 pub mod texel;
