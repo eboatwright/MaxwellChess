@@ -195,7 +195,7 @@ impl Bot {
 		}
 
 		let (tt_eval, tt_move) = self.transposition_table.lookup(self.board.zobrist.key.peek(), depth, ply, alpha, beta);
-		// let not_pv = alpha == beta - 1;
+		let not_pv = alpha == beta - 1;
 
 		if not_root {
 			if let Some(tt_eval) = tt_eval {
@@ -213,7 +213,7 @@ impl Bot {
 			return self.q_search(alpha, beta);
 		}
 
-		let mut found_legal_move = false;
+		let mut legal_moves_found = 0;
 		let mut found_pv = false;
 		let mut best_move_this_search = NULL_MOVE;
 		let mut move_list = self.board.get_moves(ALL_MOVES);
@@ -233,10 +233,28 @@ impl Bot {
 			if !self.board.make_move(&m) { continue; }
 			let board_state_after_move = self.board.history.peek();
 
-			found_legal_move = true;
+			legal_moves_found += 1;
 
 			let mut eval = 0;
 			let mut needs_fuller_search = true;
+
+			if legal_moves_found > 3
+			&& depth > 1
+			&& !in_check
+			&& board_state_after_move.capture == pieces::NONE {
+				let mut reduction = 2;
+
+				if found_pv {
+					reduction += 1;
+				}
+
+				if not_pv {
+					reduction += 1;
+				}
+
+				eval = -self.ab_search(depth.saturating_sub(reduction), ply + 1, -alpha - 1, -alpha);
+				needs_fuller_search = eval > alpha;
+			}
 
 			if found_pv {
 				// PVS
@@ -291,7 +309,7 @@ impl Bot {
 			}
 		}
 
-		if !found_legal_move {
+		if legal_moves_found == 0 {
 			if self.board.in_check() {
 				return -(CHECKMATE - ply as i16);
 			}

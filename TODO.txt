@@ -1,6 +1,5 @@
 bot
 	aspiration windows
-	lmr
 	static exchange evaluation
 	futility pruning
 	reverse futility pruning
