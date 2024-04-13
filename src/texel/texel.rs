@@ -215,7 +215,7 @@ fn q_search(bot: &mut Bot, mut alpha: i16, beta: i16, params: &[i16]) -> i16 {
 			if pieces::is_white(piece) {
 				eval += params[(piece_type * 64 + i) as usize];
 			} else {
-				eval -= params[(piece_type * 64 + i) as usize];
+				eval -= params[(piece_type * 64 + (63 - i)) as usize];
 			}
 		}
 	}
