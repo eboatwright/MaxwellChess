@@ -15,10 +15,10 @@ use crate::bot::*;
 use std::process::Command;
 use std::process::Stdio;
 
-pub const GAMES_PER_MATCH: usize = 1_000;
+pub const GAMES_PER_MATCH: usize = 1000;
 pub const THREADS: usize = 4;
-pub const TIME_PER_MOVE: f32 = 0.1;
-// pub const K: f32 = 128.0;
+pub const TIME_PER_MOVE: f32 = 0.08;
+pub const SCALE: f32 = 128.0;
 
 struct Position {
 	fen: String,
@@ -26,12 +26,12 @@ struct Position {
 }
 
 pub fn sigmoid(x: i16) -> f32 {
-	1.0 / (1.0 + f32::exp(-x as f32))
+	1.0 / (1.0 + f32::exp(-(x as f32 / SCALE)))
 	// 1.0 / (1.0 + 10.0f32.powf(-K * x as f32 / 400.0))
 }
 
 fn print(s: &str) {
-	print!("{}                 \r", s);
+	print!("{}                           \r", s);
 	stdout().flush().expect("Failed to flush stdout");
 }
 
@@ -40,6 +40,7 @@ pub fn texel_tuning() {
 
 	println!("### MAXWELL TEXEL TUNER ###");
 
+	let mut tune_rate = 20;
 	let mut training_cycle = 0;
 	loop {
 		training_cycle += 1;
@@ -47,42 +48,63 @@ pub fn texel_tuning() {
 
 		let positions = play_games();
 
+		// print("Saving positions...");
+
+		// let mut positions_output = File::create(&format!("texel_positions/{}", positions.len())).expect("Failed to create position output file");
+		// for position in positions.iter() {
+		// 	writeln!(
+		// 		positions_output,
+		// 		"{}:{}",
+		// 		position.fen.split(' ').collect::<Vec<&str>>()[0..2].join(" "), // The pieces and the side to move
+		// 		position.result,
+		// 	).expect("Failed to write position");
+		// }
+
 		print("Calculating error...");
 
-		let mut best_error = error(&positions, &params);
+		let mut current_error = error(&positions, &params);
 
-		print("Tuning...");
+		print(&format!("Tuning... (Rate={})", tune_rate));
 
-		let mut epochs = 0;
-		let mut improved = true;
-		while improved {
-			improved = false;
+		for pi in 0..params.len() {
+			print(&format!("Tuning... (Rate={}, {}/{})", tune_rate, pi, params.len()));
 
-			for pi in 0..params.len() {
-				// Do a +1 and see if it helps
-				params[pi] += 1;
+			let mut momentum_direction = 1;
+			let mut improved_weight = true;
+			while improved_weight {
+				improved_weight = false;
+				let old_value = params[pi];
+
+				// +1
+				params[pi] += tune_rate * momentum_direction;
 				let new_error = error(&positions, &params);
-				if new_error < best_error {
-					best_error = new_error;
-					improved = true;
+
+				if new_error < current_error {
+					current_error = new_error;
+					improved_weight = true;
 				} else {
-					// If not do a -1
-					params[pi] -= 2;
+					// If the +1 didn't help, try the opposite direction
+					// -1
+					params[pi] = old_value - tune_rate * momentum_direction;
 					let new_error = error(&positions, &params);
-					if new_error < best_error {
-						best_error = new_error;
-						improved = true;
+
+					if new_error < current_error {
+						current_error = new_error;
+						improved_weight = true;
+						// If going the other direction helped more, then reverse the momentum and keep going
+						momentum_direction *= -1;
 					} else {
-						// And if neither of those worked, put it back where it was
-						params[pi] += 1;
+						// Set it back where it was
+						params[pi] = old_value;
 					}
 				}
 			}
-
-			epochs += 1;
-			print(&format!("Tuning... {} epochs", epochs));
 		}
-		println!("Tuned for {} epochs.          ", epochs);
+		println!("Finished tuning!                          ");
+		if tune_rate > 1 {
+			tune_rate -= 1;
+			println!("(Reducing rate to {}.)", tune_rate);
+		}
 
 		print("Writing to file...");
 		let mut output_file = File::create(&format!("texel_psts/{}", training_cycle)).expect("Failed to create output file");
@@ -123,7 +145,7 @@ fn play_games() -> Vec<Position> {
 			});
 		}
 
-		print(&format!("Playing games... {}/{}", games, GAMES_PER_MATCH));
+		print(&format!("Playing games... ({}/{})", games, GAMES_PER_MATCH));
 
 		if let Ok(mut _positions) = receiver.recv() {
 			positions.append(&mut _positions);
