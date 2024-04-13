@@ -1,21 +1,19 @@
-misc
-	draw detection
-		threefold repetition
-		insufficient material
-		50 move rule
-
-texel
-	collect all the positions
-	layout routine
-		collect positions from X amount of games
-		adjust weights based on that
-		use new weights on the next iteration
-
 bot
-	killer moves
+	aspiration windows
 	lmr
 	check extension
+	static exchange evaluation
+	futility pruning
+	reverse futility pruning
+	null move pruning
+	razoring
+	probcut
+	move count based pruning (late move pruning)
+	delta pruning in q search (or maybe see will be better...)
 	move sorting
+		test different history indexes (and try making it one big list)
+		killer moves
+		counter moves
 		pv lines?
 	multithreading
 		main thread that waits for responses from the uci interface and the worker threads
@@ -24,3 +22,8 @@ bot
 		uci
 			setoption Threads
 			stop
+
+transposition table
+	buckets
+	experiment with replacement schemes
+	test not looking up during pv nodes
