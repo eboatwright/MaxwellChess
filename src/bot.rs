@@ -8,6 +8,8 @@ use crate::board::*;
 use std::time::Instant;
 
 pub const MAX_DEPTH: u8 = 100;
+pub const MAX_KILLER_MOVE_PLY: u8 = 30;
+pub const KILLER_MOVES_PER_PLY: usize = 2;
 
 #[derive(Copy, Clone, PartialEq)]
 pub enum BotOutput {
@@ -24,10 +26,38 @@ pub const MVV_LVA: [i16; 36] = [
 	10, 20, 30, 40, 50, 60, // King
 ];
 
+#[derive(Copy, Clone)]
+pub struct KillerMoves {
+	pub moves: [MoveData; KILLER_MOVES_PER_PLY],
+}
+
+impl KillerMoves {
+	pub fn empty() -> Self {
+		Self {
+			moves: [NULL_MOVE; KILLER_MOVES_PER_PLY],
+		}
+	}
+
+	pub fn add(&mut self, new_move: MoveData) {
+		if self.is_killer(&new_move) {
+			return;
+		}
+
+		self.moves.rotate_right(1);
+		self.moves[0] = new_move;
+	}
+
+	pub fn is_killer(&self, new_move: &MoveData) -> bool {
+		   &self.moves[0] == new_move
+		|| &self.moves[1] == new_move
+	}
+}
+
 pub struct Bot {
 	pub board: Board,
 	pub transposition_table: TranspositionTable,
 	pub history: [[[i16; 64]; 64]; 2],
+	pub killer_moves: [KillerMoves; MAX_KILLER_MOVE_PLY as usize],
 
 	pub nodes: u128,
 	pub q_nodes: u128,
@@ -52,6 +82,7 @@ impl Bot {
 			board: Board::new(fen),
 			transposition_table: TranspositionTable::new(tt_mbs),
 			history: [[[0; 64]; 64]; 2],
+			killer_moves: [KillerMoves::empty(); MAX_KILLER_MOVE_PLY as usize],
 
 			nodes: 0,
 			q_nodes: 0,
@@ -71,11 +102,16 @@ impl Bot {
 		}
 	}
 
+	pub fn clear_short_term_mem(&mut self) {
+		self.history = [[[0; 64]; 64]; 2];
+		self.killer_moves = [KillerMoves::empty(); MAX_KILLER_MOVE_PLY as usize];
+	}
+
 	pub fn go(&mut self, movetime: Option<f32>, max_depth: u8, output: BotOutput) {
 		self.output = output;
 		self.movetime = movetime;
 
-		self.history = [[[0; 64]; 64]; 2];
+		self.clear_short_term_mem();
 
 		self.nodes = 0;
 		self.q_nodes = 0;
@@ -130,7 +166,7 @@ impl Bot {
 		self.search_cancelled || (self.movetime.is_some() && self.nodes % 20_000 == 0 && self.timer.elapsed().as_secs_f32() >= self.movetime.unwrap())
 	}
 
-	pub fn ab_search(&mut self, depth: u8, ply: u8, mut alpha: i16, beta: i16) -> i16 {
+	pub fn ab_search(&mut self, mut depth: u8, ply: u8, mut alpha: i16, beta: i16) -> i16 {
 		if self.should_cancel_search() {
 			self.search_cancelled = true;
 			return 0;
@@ -159,11 +195,17 @@ impl Bot {
 		}
 
 		let (tt_eval, tt_move) = self.transposition_table.lookup(self.board.zobrist.key.peek(), depth, ply, alpha, beta);
+		// let not_pv = alpha == beta - 1;
 
 		if not_root {
 			if let Some(tt_eval) = tt_eval {
 				return tt_eval;
 			}
+		}
+
+		let in_check = self.board.in_check();
+		if in_check {
+			depth += 1;
 		}
 
 		if depth == 0 {
@@ -183,6 +225,7 @@ impl Bot {
 			} else {
 				tt_move.unwrap_or(NULL_MOVE)
 			}),
+			ply,
 		);
 
 		for i in 0..move_list.len() {
@@ -227,6 +270,9 @@ impl Bot {
 
 				if board_state_after_move.capture == pieces::NONE {
 					self.history[self.board.white_to_move as usize][m.from as usize][m.to as usize] += depth as i16 * depth as i16;
+					if ply < MAX_KILLER_MOVE_PLY {
+						self.killer_moves[ply as usize].add(m);
+					}
 				}
 
 				return beta;
@@ -284,7 +330,7 @@ impl Bot {
 		}
 
 		let mut move_list = self.board.get_moves(CAPTURES_ONLY);
-		self.score_move_list(&mut move_list, &NULL_MOVE);
+		self.score_move_list(&mut move_list, &NULL_MOVE, MAX_KILLER_MOVE_PLY);
 
 		for i in 0..move_list.len() {
 			let m = move_list.next(i);
@@ -306,7 +352,7 @@ impl Bot {
 	}
 
 	// TODO incremental move sorting?
-	pub fn score_move_list(&mut self, move_list: &mut MoveList, best_move: &MoveData) {
+	pub fn score_move_list(&mut self, move_list: &mut MoveList, best_move: &MoveData, ply: u8) {
 		for (m, score) in move_list.moves.iter_mut() {
 			if m == best_move {
 				*score = 30_000;
@@ -314,6 +360,11 @@ impl Bot {
 				let capture = self.board.get(m.to);
 				if capture == pieces::NONE {
 					*score += self.history[self.board.white_to_move as usize][m.from as usize][m.to as usize];
+
+					if ply < MAX_KILLER_MOVE_PLY
+					&& self.killer_moves[ply as usize].is_killer(m) {
+						*score += 10_000; // TODO should this be higher or lower than a capture?
+					}
 				} else {
 					*score = 20_000 + MVV_LVA[(pieces::get_type(m.piece) * 6 + pieces::get_type(capture)) as usize];
 				}

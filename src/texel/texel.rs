@@ -251,7 +251,7 @@ fn q_search(bot: &mut Bot, mut alpha: i16, beta: i16, params: &[i16]) -> i16 {
 	}
 
 	let mut move_list = bot.board.get_moves(CAPTURES_ONLY);
-	bot.score_move_list(&mut move_list, &NULL_MOVE);
+	bot.score_move_list(&mut move_list, &NULL_MOVE, MAX_KILLER_MOVE_PLY);
 
 	for i in 0..move_list.len() {
 		let m = move_list.next(i);
