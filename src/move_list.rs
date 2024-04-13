@@ -1,16 +1,11 @@
 use crate::move_data::MoveData;
 
+#[derive(Default)]
 pub struct MoveList {
 	pub moves: Vec<(MoveData, i16)>,
 }
 
 impl MoveList {
-	pub fn new() -> Self {
-		Self {
-			moves: vec![],
-		}
-	}
-
 	pub fn len(&self) -> usize {
 		self.moves.len()
 	}

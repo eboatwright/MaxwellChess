@@ -1,7 +1,6 @@
 #![allow(dead_code)]
 #![allow(unused_variables)]
 #![allow(unused_imports)]
-// #![warn(clippy::cast_lossless)]
 
 pub mod piece_square_tables;
 pub mod texel;
@@ -19,10 +18,8 @@ pub mod board;
 pub mod perft;
 pub mod bot;
 
-use crate::move_data::MoveData;
 use crate::texel::texel_tuning;
 use crate::bot::*;
-use std::time::Instant;
 use crate::move_data::flag;
 use crate::board::Board;
 

@@ -5,7 +5,6 @@ use crate::value_holder::ValueHolder;
 use crate::castling_rights::*;
 use crate::constants::*;
 use crate::utils::get_lsb;
-use crate::utils::print_bitboard;
 use crate::precalculated_data::*;
 use crate::flag;
 use crate::utils::pop_lsb;
@@ -267,7 +266,7 @@ impl Board {
 			new_state.halfmove_clock = 0;
 		}
 
-		self.zobrist.make_move(&data, &self.history.peek(), &new_state);
+		self.zobrist.make_move(data, &self.history.peek(), &new_state);
 		self.history.push(new_state);
 
 		if self.in_check() {
@@ -473,7 +472,7 @@ impl Board {
 	}
 
 	pub fn get_moves(&self, captures_only: bool) -> MoveList {
-		let mut move_list = MoveList::new();
+		let mut move_list = MoveList::default();
 
 		let pieces =
 			if self.white_to_move {
@@ -502,7 +501,7 @@ impl Board {
 			return false;
 		}
 
-		let mut move_list = MoveList::new();
+		let mut move_list = MoveList::default();
 		self.get_moves_for_piece(piece, data.from, ALL_MOVES, &mut move_list);
 		for (m, _) in move_list.moves {
 			if m.to == data.to
