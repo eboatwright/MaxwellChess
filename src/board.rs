@@ -310,11 +310,10 @@ impl Board {
 		}
 	}
 
-	pub fn get_moves_for_piece(&self, piece_index: u8, captures_only: bool, move_list: &mut MoveList) {
-		let piece = self.get(piece_index);
+	pub fn get_moves_for_piece(&self, piece: u8, piece_index: u8, captures_only: bool, move_list: &mut MoveList) {
 		let piece_type = pieces::get_type(piece);
-		let is_white_piece = pieces::is_white(piece);
-		let other_color = !is_white_piece as usize;
+		let is_white = self.white_to_move;
+		let other_color = !is_white as usize;
 
 		if piece_type == pieces::PAWN {
 			let rank = piece_index / 8;
@@ -323,7 +322,7 @@ impl Board {
 
 			// Pushing
 			if !captures_only {
-				let single_push = (piece_index as i8 + PAWN_PUSH[is_white_piece as usize]) as u8;
+				let single_push = (piece_index as i8 + PAWN_PUSH[is_white as usize]) as u8;
 
 				if self.get(single_push) == pieces::NONE {
 					if will_promote {
@@ -348,8 +347,8 @@ impl Board {
 						);
 					}
 
-					if rank == SECOND_RANK[is_white_piece as usize] {
-						let double_push = (piece_index as i8 + DOUBLE_PAWN_PUSH[is_white_piece as usize]) as u8;
+					if rank == SECOND_RANK[is_white as usize] {
+						let double_push = (piece_index as i8 + DOUBLE_PAWN_PUSH[is_white as usize]) as u8;
 
 						if self.get(double_push) == pieces::NONE {
 							move_list.push(
@@ -367,8 +366,8 @@ impl Board {
 
 			// Capturing
 			let mut bitboard =
-				  PAWN_ATTACKS[piece_index as usize][is_white_piece as usize]
-				& self.color_bitboards[!is_white_piece as usize];
+				  PAWN_ATTACKS[piece_index as usize][is_white as usize]
+				& self.color_bitboards[!is_white as usize];
 
 			while bitboard != 0 {
 				let capture_index = pop_lsb(&mut bitboard);
@@ -400,7 +399,7 @@ impl Board {
 			// En passant
 			let en_passant_square = self.history.peek().en_passant_square;
 			if en_passant_square != 0
-			&& PAWN_ATTACKS[piece_index as usize][is_white_piece as usize] & (1 << en_passant_square) != 0 {
+			&& PAWN_ATTACKS[piece_index as usize][is_white as usize] & (1 << en_passant_square) != 0 {
 				move_list.push(
 					MoveData {
 						from: piece_index,
@@ -423,15 +422,15 @@ impl Board {
 				} else {
 					KING_ATTACKS[piece_index as usize]
 				}
-				& !self.color_bitboards[is_white_piece as usize];
+				& !self.color_bitboards[is_white as usize];
 
 			if captures_only {
-				bitboard &= self.color_bitboards[!is_white_piece as usize];
+				bitboard &= self.color_bitboards[!is_white as usize];
 			} else if piece_type == pieces::KING {
 				let castling_rights = self.history.peek().castling_rights;
 
-				if castling_rights.kingside(is_white_piece)
-				&& CASTLE_KINGSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
+				if castling_rights.kingside(is_white)
+				&& CASTLE_KINGSIDE_MASK[is_white as usize] & self.occupied_bitboard() == 0
 				&& !self.in_check()
 				&& self.get_attackers_of(piece_index + 1) == 0 {
 					move_list.push(
@@ -444,8 +443,8 @@ impl Board {
 					);
 				}
 
-				if castling_rights.queenside(is_white_piece)
-				&& CASTLE_QUEENSIDE_MASK[is_white_piece as usize] & self.occupied_bitboard() == 0
+				if castling_rights.queenside(is_white)
+				&& CASTLE_QUEENSIDE_MASK[is_white as usize] & self.occupied_bitboard() == 0
 				&& !self.in_check()
 				&& self.get_attackers_of(piece_index - 1) == 0 {
 					move_list.push(
@@ -488,7 +487,7 @@ impl Board {
 			let mut bitboard = self.piece_bitboards[piece as usize];
 			while bitboard != 0 {
 				let piece_index = pop_lsb(&mut bitboard);
-				self.get_moves_for_piece(piece_index, captures_only, &mut move_list);
+				self.get_moves_for_piece(piece, piece_index, captures_only, &mut move_list);
 			}
 		}
 
@@ -505,7 +504,7 @@ impl Board {
 		}
 
 		let mut move_list = MoveList::new();
-		self.get_moves_for_piece(data.from, ALL_MOVES, &mut move_list);
+		self.get_moves_for_piece(piece, data.from, ALL_MOVES, &mut move_list);
 		for (m, _) in move_list.moves {
 			if m.to == data.to
 			&& (data.flag == flag::NONE || data.flag == m.flag) {
