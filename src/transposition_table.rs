@@ -16,7 +16,7 @@ pub enum EvalBound {
 #[derive(Copy, Clone)]
 pub struct TTEntry {
 	pub key: u64,
-	pub best_move: MoveData, // TODO: maybe pack this into a u16
+	pub best_move: MoveData, // TODO maybe pack this into a u16
 	pub eval_bound: EvalBound,
 	pub eval: i16,
 	pub depth: u8,

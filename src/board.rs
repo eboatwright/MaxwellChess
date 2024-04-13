@@ -20,6 +20,7 @@ pub struct BoardState {
 	pub capture: u8,
 	pub castling_rights: CastlingRights,
 	pub en_passant_square: u8,
+	pub halfmove_clock: u8,
 }
 
 #[derive(Clone)]
@@ -64,6 +65,9 @@ impl Board {
 					capture: pieces::NONE,
 					castling_rights: CastlingRights::from_str(fen_split.get(2).unwrap_or(&"-")),
 					en_passant_square: square_to_index(fen_split.get(3).unwrap_or(&"-")),
+					// TODO this doesn't work currently, and I don't need it so I guess I'll come back to it later
+					// halfmove_clock: fen_split.get(4).unwrap_or(&"0").parse::<u8>().unwrap_or(0),
+					halfmove_clock: 0,
 				}
 			),
 		};
@@ -71,6 +75,49 @@ impl Board {
 		board.zobrist = Zobrist::calculate(&board);
 
 		board
+	}
+
+	pub fn generate_fen(&self) -> String {
+		let mut result = String::new();
+
+		for rank in 0..8 {
+			let mut empty_squares = 0;
+
+			for file in 0..8 {
+				let piece = self.get(rank * 8 + file);
+				if piece == pieces::NONE {
+					empty_squares += 1;
+				} else {
+					if empty_squares > 0 {
+						result += &empty_squares.to_string();
+					}
+
+					result += &pieces::to_char(piece).to_string();
+
+					empty_squares = 0;
+				}
+			}
+
+			if empty_squares > 0 {
+				result += &empty_squares.to_string();
+			}
+
+			result += "/";
+		}
+
+		result.pop(); // Pop the last '/'
+
+		let state = self.history.peek();
+
+		result += &format!(" {side_to_move} {castling_rights} {en_passant_square} {halfmove_clock} {fullmove_counter}",
+			side_to_move=if self.white_to_move { "w" } else { "b" },
+			castling_rights=&state.castling_rights.to_str(),
+			en_passant_square=if state.en_passant_square == 0 { "-" } else { SQUARES[state.en_passant_square as usize] },
+			halfmove_clock=state.halfmove_clock,
+			fullmove_counter=(self.history.len() + 1) / 2,
+		);
+
+		result
 	}
 
 	pub fn occupied_bitboard(&self) -> u64 {
@@ -131,6 +178,7 @@ impl Board {
 		}
 		println!("---------------------------------");
 		println!("{} to move", if self.white_to_move { "White" } else { "Black" });
+		println!("FEN: {}", self.generate_fen());
 		println!("Zobrist key: {}", self.zobrist.key.peek());
 	}
 
@@ -164,8 +212,9 @@ impl Board {
 	}
 
 	pub fn make_move(&mut self, data: &MoveData) -> bool {
-		let mut current_state = self.history.peek();
-		current_state.capture = self.get(data.to);
+		let mut new_state = self.history.peek();
+		new_state.capture = self.get(data.to);
+		new_state.halfmove_clock += 1;
 
 		if flag::is_promotion(data.flag) {
 			self.toggle_piece(data.piece, data.from);
@@ -175,18 +224,18 @@ impl Board {
 		}
 
 		if data.flag == flag::DOUBLE_PAWN_PUSH {
-			current_state.en_passant_square = (data.to as i8 - PAWN_PUSH[self.white_to_move as usize]) as u8;
+			new_state.en_passant_square = (data.to as i8 - PAWN_PUSH[self.white_to_move as usize]) as u8;
 		} else {
-			if data.flag == flag::EN_PASSANT { // If en passant was played, capture will actually be pieces::NONE because current_state.capture is set at the top of the function
-				let pawn_square = current_state.en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
+			if data.flag == flag::EN_PASSANT { // If en passant was played, capture will actually be pieces::NONE because new_state.capture is set at the top of the function
+				let pawn_square = new_state.en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
 				let pawn_captured = pieces::build(!self.white_to_move, pieces::PAWN);
 				self.toggle_piece(pawn_captured, pawn_square as u8);
-				current_state.capture = pawn_captured; // Set the capture to the correct pawn, because this is used in undo_move
+				new_state.capture = pawn_captured; // Set the capture to the correct pawn, because this is used in undo_move
 			} else {
 				let piece_type = pieces::get_type(data.piece);
 
 				if piece_type == pieces::KING {
-					current_state.castling_rights.remove_both(self.white_to_move);
+					new_state.castling_rights.remove_both(self.white_to_move);
 
 					if data.flag == flag::CASTLE_KINGSIDE {
 						let rook = pieces::build(self.white_to_move, pieces::ROOK);
@@ -196,25 +245,30 @@ impl Board {
 						self.move_piece(rook, data.to - 2, data.to + 1);
 					}
 				} else if piece_type == pieces::ROOK {
-					current_state.castling_rights.remove_one(data.from);
+					new_state.castling_rights.remove_one(data.from);
 				}
 
-				if current_state.capture != pieces::NONE {
-					self.toggle_piece(current_state.capture, data.to);
+				if new_state.capture != pieces::NONE {
+					self.toggle_piece(new_state.capture, data.to);
 
-					if pieces::get_type(current_state.capture) == pieces::ROOK {
-						current_state.castling_rights.remove_one(data.to);
+					if pieces::get_type(new_state.capture) == pieces::ROOK {
+						new_state.castling_rights.remove_one(data.to);
 					}
 				}
 			}
 
 			// Reset the en passant square because you can only en passant the turn after the double pawn push
 			// This also has to be set after checking if the move was en passant, because we need to check the en passant square (I'm leaving this so I remember lol)
-			current_state.en_passant_square = 0;
+			new_state.en_passant_square = 0;
 		}
 
-		self.zobrist.make_move(&data, &self.history.peek(), &current_state);
-		self.history.push(current_state);
+		if new_state.capture != pieces::NONE
+		|| pieces::get_type(data.piece) == pieces::PAWN {
+			new_state.halfmove_clock = 0;
+		}
+
+		self.zobrist.make_move(&data, &self.history.peek(), &new_state);
+		self.history.push(new_state);
 
 		if self.in_check() {
 			self.white_to_move = !self.white_to_move;
@@ -230,7 +284,7 @@ impl Board {
 	pub fn undo_move(&mut self, data: &MoveData) {
 		if !self.history.is_empty() {
 			let last_state = self.history.peek();
-			self.zobrist.undo_move(&data);
+			self.zobrist.key.pop();
 			self.history.pop();
 			self.white_to_move = !self.white_to_move;
 
@@ -484,5 +538,37 @@ impl Board {
 		}
 
 		material_balance * self.perspective()
+	}
+
+	pub fn insufficient_checkmating_material(&self) -> bool {
+		let occupied = self.occupied_bitboard().count_ones();
+		if occupied == 2 { // 2 Kings
+			true
+		} else if occupied == 3 { // If you only have one piece other than kings, you need a pawn, rook or queen
+			  self.piece_bitboards[pieces::WHITE_PAWN as usize] | self.piece_bitboards[pieces::BLACK_PAWN as usize]
+			| self.piece_bitboards[pieces::WHITE_ROOK as usize] | self.piece_bitboards[pieces::BLACK_ROOK as usize]
+			| self.piece_bitboards[pieces::WHITE_QUEEN as usize] | self.piece_bitboards[pieces::BLACK_QUEEN as usize] == 0
+		} else {
+			false
+		}
+	}
+
+	pub fn is_repetition(&self) -> bool {
+		// TODO take into account null moves when I add NMP
+		let halfmove_clock = self.history.peek().halfmove_clock as usize;
+		let current_key = &self.zobrist.key.peek();
+
+		self.zobrist.key.history[(self.zobrist.key.index - halfmove_clock)..self.zobrist.key.index]
+			.iter()
+			.rev()
+			.skip(1)
+			.step_by(2)
+			.any(|key| key == current_key)
+	}
+
+	pub fn is_draw(&self) -> bool {
+		   self.history.peek().halfmove_clock >= 100
+		|| self.insufficient_checkmating_material()
+		|| self.is_repetition()
 	}
 }

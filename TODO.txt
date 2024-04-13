@@ -12,7 +12,7 @@ texel
 		use new weights on the next iteration
 
 bot
-	pvs
+	killer moves
 	lmr
 	check extension
 	move sorting

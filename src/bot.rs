@@ -27,6 +27,7 @@ pub const MVV_LVA: [i16; 36] = [
 pub struct Bot {
 	pub board: Board,
 	pub transposition_table: TranspositionTable,
+	pub history: [[[i16; 64]; 64]; 2],
 
 	pub nodes: u128,
 	pub q_nodes: u128,
@@ -50,6 +51,7 @@ impl Bot {
 		Self {
 			board: Board::new(fen),
 			transposition_table: TranspositionTable::new(tt_mbs),
+			history: [[[0; 64]; 64]; 2],
 
 			nodes: 0,
 			q_nodes: 0,
@@ -72,6 +74,8 @@ impl Bot {
 	pub fn go(&mut self, movetime: Option<f32>, max_depth: u8, output: BotOutput) {
 		self.output = output;
 		self.movetime = movetime;
+
+		self.history = [[[0; 64]; 64]; 2];
 
 		self.nodes = 0;
 		self.q_nodes = 0;
@@ -117,7 +121,9 @@ impl Bot {
 			}
 		}
 
-		println!("bestmove {}", self.best_move.to_coordinates());
+		if self.output == BotOutput::Uci {
+			println!("bestmove {}", self.best_move.to_coordinates());
+		}
 	}
 
 	pub fn should_cancel_search(&self) -> bool {
@@ -130,33 +136,76 @@ impl Bot {
 			return 0;
 		}
 
-		if depth == 0 {
-			return self.q_search(alpha, beta);
+		let not_root = ply != 0;
+
+		if not_root {
+			self.seldepth = u8::max(self.seldepth, ply);
+			self.nodes += 1;
+
+			if self.board.is_draw() {
+				return 0;
+			}
+
+			if is_checkmate(alpha)
+			|| is_checkmate(beta) {
+				// Mate Distance Pruning
+				let mate_value = CHECKMATE - ply as i16;
+				let alpha = i16::max(alpha, -mate_value);
+				let beta = i16::min(beta, mate_value - 1);
+				if alpha >= beta {
+					return alpha;
+				}
+			}
 		}
 
 		let (tt_eval, tt_move) = self.transposition_table.lookup(self.board.zobrist.key.peek(), depth, ply, alpha, beta);
 
-		if ply != 0 {
-			self.nodes += 1;
-			self.seldepth = u8::max(self.seldepth, depth);
-
+		if not_root {
 			if let Some(tt_eval) = tt_eval {
 				return tt_eval;
 			}
 		}
 
+		if depth == 0 {
+			self.nodes -= 1;
+			return self.q_search(alpha, beta);
+		}
+
 		let mut found_legal_move = false;
+		let mut found_pv = false;
 		let mut best_move_this_search = NULL_MOVE;
 		let mut move_list = self.board.get_moves(ALL_MOVES);
-		self.score_move_list(&mut move_list, &tt_move.unwrap_or(NULL_MOVE));
+		self.score_move_list(
+			&mut move_list,
+			&(if ply == 0
+			&& self.best_move != NULL_MOVE {
+				self.best_move
+			} else {
+				tt_move.unwrap_or(NULL_MOVE)
+			}),
+		);
 
 		for i in 0..move_list.len() {
 			let m = move_list.next(i);
 			if !self.board.make_move(&m) { continue; }
+			let board_state_after_move = self.board.history.peek();
 
 			found_legal_move = true;
 
-			let eval = -self.ab_search(depth - 1, ply + 1, -beta, -alpha);
+			let mut eval = 0;
+			let mut needs_fuller_search = true;
+
+			if found_pv {
+				// PVS
+				eval = -self.ab_search(depth - 1, ply + 1, -alpha - 1, -alpha);
+				needs_fuller_search = eval > alpha;
+			}
+
+			if needs_fuller_search {
+				// Normal search
+				eval = -self.ab_search(depth - 1, ply + 1, -beta, -alpha);
+			}
+
 			self.board.undo_move(&m);
 
 			if self.should_cancel_search() {
@@ -176,12 +225,17 @@ impl Bot {
 					ply,
 				);
 
+				if board_state_after_move.capture == pieces::NONE {
+					self.history[self.board.white_to_move as usize][m.from as usize][m.to as usize] += depth as i16 * depth as i16;
+				}
+
 				return beta;
 			}
 
 			if eval > alpha {
 				alpha = eval;
 				best_move_this_search = m;
+				found_pv = true;
 
 				if ply == 0 {
 					self.searched_one_move = true;
@@ -199,7 +253,7 @@ impl Bot {
 			return 0; // Stalemate
 		}
 
-		// TODO: try storing alpha evals
+		// TODO try storing alpha evals
 		if best_move_this_search != NULL_MOVE {
 			self.transposition_table.store(
 				TTEntry {
@@ -251,22 +305,23 @@ impl Bot {
 		alpha
 	}
 
-	pub fn score_move_list(&mut self, move_list: &mut MoveList, tt_move: &MoveData) {
+	// TODO incremental move sorting?
+	pub fn score_move_list(&mut self, move_list: &mut MoveList, best_move: &MoveData) {
 		for (m, score) in move_list.moves.iter_mut() {
-			if *m == self.best_move {
-				*score = i16::MAX;
-			} else if m == tt_move {
-				*score = i16::MAX - 1;
+			if m == best_move {
+				*score = 30_000;
 			} else {
 				let capture = self.board.get(m.to);
-				if capture != pieces::NONE {
-					*score = MVV_LVA[(pieces::get_type(m.piece) * 6 + pieces::get_type(capture)) as usize];
+				if capture == pieces::NONE {
+					*score += self.history[self.board.white_to_move as usize][m.from as usize][m.to as usize];
+				} else {
+					*score = 20_000 + MVV_LVA[(pieces::get_type(m.piece) * 6 + pieces::get_type(capture)) as usize];
 				}
 			}
 		}
 	}
 
-	// TODO: tweak this
+	// TODO tweak this
 	pub fn partition_time(&self, total_time: f32) -> f32 {
 		total_time * 0.05
 	}
