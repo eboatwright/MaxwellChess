@@ -142,6 +142,8 @@ impl Bot {
 							"mate",
 							(ply as f32 * 0.5).ceil() as i16 * self.board.perspective()
 						);
+
+						break;
 					}
 				} else {
 					self.print_uci_info(

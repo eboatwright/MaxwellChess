@@ -2,14 +2,12 @@ use crate::piece_square_tables::PSTS;
 use crate::zobrist::Zobrist;
 use crate::move_list::MoveList;
 use crate::value_holder::ValueHolder;
+use crate::precalculated_data::*;
+use crate::move_data::MoveData;
+use crate::utils::{get_lsb, pop_lsb};
+use crate::{pieces, flag};
 use crate::castling_rights::*;
 use crate::constants::*;
-use crate::utils::get_lsb;
-use crate::precalculated_data::*;
-use crate::flag;
-use crate::utils::pop_lsb;
-use crate::pieces;
-use crate::move_data::MoveData;
 
 pub const ALL_MOVES: bool = false;
 pub const CAPTURES_ONLY: bool = true;
@@ -182,8 +180,15 @@ impl Board {
 	}
 
 	pub fn get(&self, i: u8) -> u8 {
+		let square = 1 << i;
+
+		// This actually helped by 1M perft NPS, and 100k search NPS!
+		if !self.occupied_bitboard() & square != 0 {
+			return pieces::NONE;
+		}
+
 		for piece in 0..pieces::COUNT {
-			if self.piece_bitboards[piece as usize] & (1 << i) != 0 {
+			if self.piece_bitboards[piece as usize] & square != 0 {
 				return piece;
 			}
 		}
