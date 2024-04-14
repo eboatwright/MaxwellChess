@@ -1,3 +1,4 @@
+use crate::nnue::NNUE;
 use crate::piece_square_tables::PSTS;
 use crate::zobrist::Zobrist;
 use crate::move_list::MoveList;
@@ -28,6 +29,7 @@ pub struct Board {
 
 	pub zobrist: Zobrist,
 	pub history: ValueHolder<BoardState>,
+	pub nnue: NNUE,
 }
 
 impl Board {
@@ -67,9 +69,11 @@ impl Board {
 					halfmove_clock: 0,
 				}
 			),
+			nnue: NNUE::default(),
 		};
 
 		board.zobrist = Zobrist::calculate(&board);
+		board.nnue = NNUE::initialize(&board);
 
 		board
 	}
@@ -196,6 +200,9 @@ impl Board {
 		pieces::NONE
 	}
 
+	// TODO maybe I can add nnue accumulator (and maybe even zobrist key) updating to these two functions,
+	//		then I don't have to have separate functions for it?
+
 	// Since I'm using ^= this function is used for placing and removing pieces
 	pub fn toggle_piece(&mut self, piece: u8, square: u8) {
 		let square = 1 << square;
@@ -215,48 +222,48 @@ impl Board {
 		self.color_bitboards[color] ^= to;
 	}
 
-	pub fn make_move(&mut self, data: &MoveData) -> bool {
+	pub fn make_move(&mut self, m: &MoveData) -> bool {
 		let mut new_state = self.history.peek();
-		new_state.capture = self.get(data.to);
+		new_state.capture = self.get(m.to);
 		new_state.halfmove_clock += 1;
 
-		if flag::is_promotion(data.flag) {
-			self.toggle_piece(data.piece, data.from);
-			self.toggle_piece(pieces::build(self.white_to_move, data.flag), data.to);
+		if flag::is_promotion(m.flag) {
+			self.toggle_piece(m.piece, m.from);
+			self.toggle_piece(pieces::build(self.white_to_move, m.flag), m.to);
 		} else {
-			self.move_piece(data.piece, data.from, data.to);
+			self.move_piece(m.piece, m.from, m.to);
 		}
 
-		if data.flag == flag::DOUBLE_PAWN_PUSH {
-			new_state.en_passant_square = (data.to as i8 - PAWN_PUSH[self.white_to_move as usize]) as u8;
+		if m.flag == flag::DOUBLE_PAWN_PUSH {
+			new_state.en_passant_square = (m.to as i8 - PAWN_PUSH[self.white_to_move as usize]) as u8;
 		} else {
-			if data.flag == flag::EN_PASSANT { // If en passant was played, capture will actually be pieces::NONE because new_state.capture is set at the top of the function
+			if m.flag == flag::EN_PASSANT { // If en passant was played, capture will actually be pieces::NONE because new_state.capture is set at the top of the function
 				let pawn_square = new_state.en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
 				let pawn_captured = pieces::build(!self.white_to_move, pieces::PAWN);
 				self.toggle_piece(pawn_captured, pawn_square as u8);
 				new_state.capture = pawn_captured; // Set the capture to the correct pawn, because this is used in undo_move
 			} else {
-				let piece_type = pieces::get_type(data.piece);
+				let piece_type = pieces::get_type(m.piece);
 
 				if piece_type == pieces::KING {
 					new_state.castling_rights.remove_both(self.white_to_move);
 
-					if data.flag == flag::CASTLE_KINGSIDE {
+					if m.flag == flag::CASTLE_KINGSIDE {
 						let rook = pieces::build(self.white_to_move, pieces::ROOK);
-						self.move_piece(rook, data.to + 1, data.to - 1);
-					} else if data.flag == flag::CASTLE_QUEENSIDE {
+						self.move_piece(rook, m.to + 1, m.to - 1);
+					} else if m.flag == flag::CASTLE_QUEENSIDE {
 						let rook = pieces::build(self.white_to_move, pieces::ROOK);
-						self.move_piece(rook, data.to - 2, data.to + 1);
+						self.move_piece(rook, m.to - 2, m.to + 1);
 					}
 				} else if piece_type == pieces::ROOK {
-					new_state.castling_rights.remove_one(data.from);
+					new_state.castling_rights.remove_one(m.from);
 				}
 
 				if new_state.capture != pieces::NONE {
-					self.toggle_piece(new_state.capture, data.to);
+					self.toggle_piece(new_state.capture, m.to);
 
 					if pieces::get_type(new_state.capture) == pieces::ROOK {
-						new_state.castling_rights.remove_one(data.to);
+						new_state.castling_rights.remove_one(m.to);
 					}
 				}
 			}
@@ -267,16 +274,17 @@ impl Board {
 		}
 
 		if new_state.capture != pieces::NONE
-		|| pieces::get_type(data.piece) == pieces::PAWN {
+		|| pieces::get_type(m.piece) == pieces::PAWN {
 			new_state.halfmove_clock = 0;
 		}
 
-		self.zobrist.make_move(data, &self.history.peek(), &new_state);
+		self.zobrist.make_move(m, &self.history.peek(), &new_state);
+		self.nnue.make_move(m);
 		self.history.push(new_state);
 
 		if self.in_check() {
 			self.white_to_move = !self.white_to_move;
-			self.undo_move(data);
+			self.undo_move(m);
 			return false;
 		}
 
@@ -285,31 +293,32 @@ impl Board {
 		true
 	}
 
-	pub fn undo_move(&mut self, data: &MoveData) {
+	pub fn undo_move(&mut self, m: &MoveData) {
 		if !self.history.is_empty() {
 			let last_state = self.history.peek();
 			self.zobrist.key.pop();
+			self.nnue.undo_move(m);
 			self.history.pop();
 			self.white_to_move = !self.white_to_move;
 
-			if flag::is_promotion(data.flag) {
-				self.toggle_piece(data.piece, data.from);
-				self.toggle_piece(pieces::build(self.white_to_move, data.flag), data.to);
+			if flag::is_promotion(m.flag) {
+				self.toggle_piece(m.piece, m.from);
+				self.toggle_piece(pieces::build(self.white_to_move, m.flag), m.to);
 			} else {
-				self.move_piece(data.piece, data.to, data.from);
+				self.move_piece(m.piece, m.to, m.from);
 			}
 
-			if data.flag == flag::EN_PASSANT {
+			if m.flag == flag::EN_PASSANT {
 				let pawn_square = self.history.peek().en_passant_square as i8 - PAWN_PUSH[self.white_to_move as usize];
 				self.toggle_piece(last_state.capture, pawn_square as u8);
 			} else if last_state.capture != pieces::NONE {
-				self.toggle_piece(last_state.capture, data.to);
-			} else if data.flag == flag::CASTLE_KINGSIDE {
+				self.toggle_piece(last_state.capture, m.to);
+			} else if m.flag == flag::CASTLE_KINGSIDE {
 				let rook = pieces::build(self.white_to_move, pieces::ROOK);
-				self.move_piece(rook, data.to - 1, data.to + 1);
-			} else if data.flag == flag::CASTLE_QUEENSIDE {
+				self.move_piece(rook, m.to - 1, m.to + 1);
+			} else if m.flag == flag::CASTLE_QUEENSIDE {
 				let rook = pieces::build(self.white_to_move, pieces::ROOK);
-				self.move_piece(rook, data.to + 1, data.to - 2);
+				self.move_piece(rook, m.to + 1, m.to - 2);
 			}
 		}
 	}
@@ -498,8 +507,8 @@ impl Board {
 	}
 
 	pub fn try_move(&mut self, coordinates: &str) -> bool {
-		let data = MoveData::from_coordinates(coordinates);
-		let piece = self.get(data.from);
+		let m = MoveData::from_coordinates(coordinates);
+		let piece = self.get(m.from);
 
 		if piece == pieces::NONE
 		|| pieces::is_white(piece) != self.white_to_move {
@@ -507,10 +516,10 @@ impl Board {
 		}
 
 		let mut move_list = MoveList::default();
-		self.get_moves_for_piece(piece, data.from, ALL_MOVES, &mut move_list);
+		self.get_moves_for_piece(piece, m.from, ALL_MOVES, &mut move_list);
 		for (m, _) in move_list.moves {
-			if m.to == data.to
-			&& (data.flag == flag::NONE || data.flag == m.flag) {
+			if m.to == m.to
+			&& (m.flag == flag::NONE || m.flag == m.flag) {
 				return self.make_move(&m);
 			}
 		}

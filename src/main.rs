@@ -17,6 +17,7 @@ pub mod transposition_table;
 pub mod board;
 pub mod perft;
 pub mod bot;
+pub mod nnue;
 
 use crate::texel::texel_tuning;
 use crate::bot::*;

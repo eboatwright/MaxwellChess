@@ -71,24 +71,24 @@ impl Zobrist {
 		zobrist
 	}
 
-	pub fn make_move(&mut self, move_data: &MoveData, previous_state: &BoardState, current_state: &BoardState) {
+	pub fn make_move(&mut self, m: &MoveData, previous_state: &BoardState, current_state: &BoardState) {
 		let mut new_key = self.key.peek();
 
-		new_key ^= self.pieces[move_data.from as usize][move_data.piece as usize];
+		new_key ^= self.pieces[m.from as usize][m.piece as usize];
 
-		if flag::is_promotion(move_data.flag) {
-			new_key ^= self.pieces[move_data.to as usize][pieces::build(pieces::is_white(move_data.piece), move_data.flag) as usize];
+		if flag::is_promotion(m.flag) {
+			new_key ^= self.pieces[m.to as usize][pieces::build(pieces::is_white(m.piece), m.flag) as usize];
 		} else {
-			new_key ^= self.pieces[move_data.to as usize][move_data.piece as usize];
+			new_key ^= self.pieces[m.to as usize][m.piece as usize];
 
-			if move_data.flag == flag::CASTLE_KINGSIDE {
-				let rook = pieces::build(pieces::is_white(move_data.piece), pieces::ROOK) as usize;
-				new_key ^= self.pieces[move_data.to as usize + 1][rook];
-				new_key ^= self.pieces[move_data.to as usize - 1][rook];
-			} else if move_data.flag == flag::CASTLE_QUEENSIDE {
-				let rook = pieces::build(pieces::is_white(move_data.piece), pieces::ROOK) as usize;
-				new_key ^= self.pieces[move_data.to as usize - 2][rook];
-				new_key ^= self.pieces[move_data.to as usize + 1][rook];
+			if m.flag == flag::CASTLE_KINGSIDE {
+				let rook = pieces::build(pieces::is_white(m.piece), pieces::ROOK) as usize;
+				new_key ^= self.pieces[m.to as usize + 1][rook];
+				new_key ^= self.pieces[m.to as usize - 1][rook];
+			} else if m.flag == flag::CASTLE_QUEENSIDE {
+				let rook = pieces::build(pieces::is_white(m.piece), pieces::ROOK) as usize;
+				new_key ^= self.pieces[m.to as usize - 2][rook];
+				new_key ^= self.pieces[m.to as usize + 1][rook];
 			}
 		}
 
@@ -108,7 +108,7 @@ impl Zobrist {
 		self.key.push(new_key);
 	}
 
-	// pub fn undo_move(&mut self, move_data: &MoveData) {
+	// pub fn undo_move(&mut self, m: &MoveData) {
 	// 	// TODO is it faster to incrementally undo, or use history?
 	// 	self.key.pop();
 	// }
